@@ -1,6 +1,6 @@
 # SourceBots
 
-SourceBots is an Artificial Intelligence system to create Bots in:
+SourceBots is an Artificial Intelligence system for create Bots in:
 
 * [Source SDK 2013](https://github.com/ValveSoftware/source-sdk-2013)
 * [Alien Swarm](https://github.com/Sandern/aswscratch)
@@ -15,15 +15,15 @@ Public versions of Source Engine only have an A.I. to create NPC's, SourceBots a
 
 ## Alpha version!
 
-The current system is in an Alpha and is not recommended to be deployed in a mod release. It is possible to encounter bugs, memory leaks and incomplete functions.
+The current system is in an **Alpha** and is not recommended to be deployed in a mod release. It is possible to encounter bugs and memory leaks.
 
-Use the current version to **test the system and improve it**, among all we can achieve a stable and complete version.
+Use the current version to **test and improve it**, among all we can achieve a stable and complete version.
 
 You can report bugs, suggestions and improvements [here](https://github.com/WootsMX/SourceBots/issues).
 
 ## TODO
 
-Here you can find all comments with the word [TODO](https://github.com/WootsMX/SourceBots/search?q=TODO&type=Code), try to solve as many as you can!
+You can find all comments with the word [TODO](https://github.com/WootsMX/SourceBots/search?q=TODO&type=Code), try to solve as many as you can!
 
 Big ones:
 
@@ -31,15 +31,31 @@ Big ones:
 * Use melee weapons
 * Use doors
 * Detect and fix memory leaks
-* Make the code easier to work.
-* Comment the code in English
-* Being able to use the system in NPC's [(As NextBot)](https://developer.valvesoftware.com/wiki/NextBot)
+* Make the code easier to work
+* English comments
+* Being able to use the A.I. in NPC's [(Like NextBot)](https://developer.valvesoftware.com/wiki/NextBot)
 * Performance Issues
 * More...
 
 ## How to start
 
 Visit the [wiki](https://github.com/WootsMX/SourceBots/wiki) with everything you need to implement it in your project!
+
+## Base Code
+
+With SourceBots you can create your own A.I. that suits the needs of your mod. The base code has what it takes to:
+
+* Move using the [Navigation Mesh](https://developer.valvesoftware.com/wiki/Navigation_Meshes)
+* Detect friends, enemies and neutral entities.
+* Attack, reload, cover, chase, etc.
+* Change to the best weapon according to the conditions
+* More details!
+
+## Videos
+
+[Here](https://youtu.be/W5N_w7dwxuw?list=PLOUVJcNedgYEfzMJvK8wiI9GzvLKRR2IW) you can view a list  of videos with Bots using SourceBots.
+
+If you have a video with Bots using Source Bots in your mod or in flashy situations do not hesitate to send it to me :)
 
 ## Contact Me
 
