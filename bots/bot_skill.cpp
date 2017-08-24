@@ -43,35 +43,35 @@ void CBotSkill::SetLevel( int skill )
 #ifdef HL2MP
         case SKILL_EASY:
             SetMemoryDuration( 7.0f );
-            SetPanicDuration( RandomFloat( 0.5f, 1.5f ) );
+            SetPanicDuration( RandomFloat( 0.5f, 1.0f ) );
             SetAlertDuration( RandomFloat( 3.0f, 5.0f ) );
             SetMinAimSpeed( AIM_SPEED_LOW );
             SetMaxAimSpeed( AIM_SPEED_NORMAL );
-            SetMinAttackRate( 0.05f );
-            SetMaxAttackRate( 0.3f );
+            SetMinAttackRate( 0.005f );
+            SetMaxAttackRate( 0.01f );
             SetFavoriteHitbox( HITGROUP_STOMACH );
             break;
 
         case SKILL_MEDIUM:
         default:
             SetMemoryDuration( 10.0f );
-            SetPanicDuration( RandomFloat( 0.5, 1.0f ) );
+            SetPanicDuration( RandomFloat( 0.2, 0.5f ) );
             SetAlertDuration( RandomFloat( 3.0f, 6.0f ) );
             SetMinAimSpeed( AIM_SPEED_LOW );
             SetMaxAimSpeed( AIM_SPEED_FAST );
-            SetMinAttackRate( 0.01f );
-            SetMaxAttackRate( 0.2f );
+            SetMinAttackRate( 0.005f );
+            SetMaxAttackRate( 0.01f );
             SetFavoriteHitbox( RandomInt( HITGROUP_CHEST, HITGROUP_STOMACH ) );
             break;
 
         case SKILL_HARD:
             SetMemoryDuration( 13.0f );
-            SetPanicDuration( RandomFloat( 0.1f, 0.5f ) );
+            SetPanicDuration( RandomFloat( 0.1f, 0.2f ) );
             SetAlertDuration( RandomFloat( 4.0f, 7.0f ) );
             SetMinAimSpeed( AIM_SPEED_NORMAL );
             SetMaxAimSpeed( AIM_SPEED_VERYFAST );
-            SetMinAttackRate( 0.001f );
-            SetMaxAttackRate( 0.1f );
+            SetMinAttackRate( 0.0001f );
+            SetMaxAttackRate( 0.001f );
             SetFavoriteHitbox( RandomInt( HITGROUP_HEAD, HITGROUP_STOMACH ) );
             break;
 #else

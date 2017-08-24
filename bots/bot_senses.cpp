@@ -218,6 +218,9 @@ void CBot::OnTakeDamage( const CTakeDamageInfo &info )
 
     // The attacker is a character
     if ( pAttacker && pAttacker->MyCombatCharacterPointer() ) {
+        if ( pAttacker == GetEnemy() )
+            return;
+
         int relationship = TheGameRules->PlayerRelationship( GetHost(), pAttacker );
 
         if ( relationship == GR_ENEMY || relationship == GR_NOTTEAMMATE ) {

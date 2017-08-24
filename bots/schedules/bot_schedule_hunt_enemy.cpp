@@ -25,6 +25,7 @@ BEGIN_SETUP_SCHEDULE( CHuntEnemySchedule )
     ADD_TASK( BTASK_RUN, NULL )
     ADD_TASK( BTASK_HUNT_ENEMY, RandomFloat(700.0, 900.0f) )
 
+#ifndef HL2MP
     // We must be careful!
     if ( carefulApproach ) {
         // We walked slowly until reaching a short distance and 
@@ -33,6 +34,7 @@ BEGIN_SETUP_SCHEDULE( CHuntEnemySchedule )
         ADD_TASK( BTASK_HUNT_ENEMY, RandomFloat( 400.0f, 500.0f ) )
         ADD_TASK( BTASK_WAIT, RandomFloat( 0.5f, 3.5f ) )
     }
+#endif
     
     ADD_TASK( BTASK_HUNT_ENEMY, NULL )
 

@@ -11,6 +11,10 @@
 
 #include "utlflags.h."
 
+#ifdef INSOURCE_DLL
+#include "in_player.h"
+#endif
+
 #include "bots\bot_defs.h"
 #include "bots\interfaces\ibot.h"
 #include "bots\components\bot_components.h"

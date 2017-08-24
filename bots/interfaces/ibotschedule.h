@@ -107,6 +107,9 @@ public:
 
     virtual void Wait( float seconds );
 
+    virtual bool SavePosition( const Vector &position, float duration = -1.0f );
+    virtual const Vector &GetSavedPosition();
+
     virtual const char *GetActiveTaskName() const;
 
     virtual void TaskStart();
@@ -127,8 +130,8 @@ protected:
     CountdownTimer m_WaitTimer;
     IntervalTimer m_StartTimer;
 
-    Vector m_vecSavedLocation;
-    Vector m_vecLocation;
+    //Vector m_vecSavedLocation;
+    //Vector m_vecLocation;
 };
 
 #endif // IBOT_SCHEDULE_H

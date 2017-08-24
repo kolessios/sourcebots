@@ -355,6 +355,8 @@ public:
     virtual bool GetNearestCover( float radius = GET_COVER_RADIUS, Vector *vecCoverSpot = NULL ) const;
     virtual bool IsInCoverPosition() const;
 
+    virtual float GetWeaponIdealRange( CBaseWeapon *pWeapon = NULL ) const;
+
     virtual BCOND ShouldRangeAttack1();
     virtual BCOND ShouldRangeAttack2();
     virtual BCOND ShouldMeleeAttack1();

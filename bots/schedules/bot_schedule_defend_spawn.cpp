@@ -19,7 +19,8 @@
 //================================================================================
 //================================================================================
 BEGIN_SETUP_SCHEDULE( CDefendSpawnSchedule )
-    ADD_TASK( BTASK_MOVE_SPAWN, NULL )
+    ADD_TASK( BTASK_GET_SPAWN, NULL )
+    ADD_TASK( BTASK_MOVE_DESTINATION, NULL )
 
     ADD_INTERRUPT( BCOND_NEW_ENEMY )
     ADD_INTERRUPT( BCOND_SEE_ENEMY )

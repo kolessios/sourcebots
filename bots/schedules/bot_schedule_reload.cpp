@@ -38,7 +38,7 @@ float CurrentSchedule::GetDesire() const
     if ( HasCondition(BCOND_EMPTY_CLIP1_AMMO) )
 		return 0.81f;
 
-    if ( HasCondition(BCOND_LOW_CLIP1_AMMO) && !HasCondition(BCOND_LOW_PRIMARY_AMMO) && GetBot()->IsIdle() )
+    if ( HasCondition(BCOND_LOW_CLIP1_AMMO) && !IsCombating() )
         return 0.43f;
 
 	return BOT_DESIRE_NONE;

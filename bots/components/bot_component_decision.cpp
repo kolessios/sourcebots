@@ -1025,6 +1025,25 @@ bool CBotDecision::IsInCoverPosition() const
 
 //================================================================================
 //================================================================================
+float CBotDecision::GetWeaponIdealRange( CBaseWeapon *pWeapon ) const
+{
+    if ( pWeapon == NULL ) {
+        pWeapon = GetHost()->GetActiveBaseWeapon();
+    }
+
+    if ( pWeapon == NULL )
+        return -1.0f;
+
+#ifdef INSOURCE_DLL
+    return pWeapon->GetWeaponInfo().m_flIdealDistance;
+#else
+    // TODO: How to know the ideal range of a bullet?
+    return 500.0f;
+#endif
+}
+
+//================================================================================
+//================================================================================
 BCOND CBotDecision::ShouldRangeAttack1()
 {
     if ( !CanAttack() )
@@ -1043,6 +1062,11 @@ BCOND CBotDecision::ShouldRangeAttack1()
     // Without vision of the enemy
     if ( HasCondition( BCOND_ENEMY_LOST ) || HasCondition( BCOND_ENEMY_OCCLUDED ) )
         return BCOND_NONE;
+
+    if ( GetVision() ) {
+        if ( GetVision()->GetAimTarget() != GetBot()->GetEnemy() || !GetVision()->IsAimReady() )
+            return BCOND_NOT_FACING_ATTACK;
+    }
 
     CBaseWeapon *pWeapon = GetHost()->GetActiveBaseWeapon();
 
@@ -1077,11 +1101,16 @@ BCOND CBotDecision::ShouldRangeAttack1()
     if ( HasCondition( BCOND_EMPTY_CLIP1_AMMO ) )
         return BCOND_NONE;
 
+    float flDistance = GetMemory()->GetPrimaryThreatDistance();
+
 #ifdef INSOURCE_DLL
     if ( !pWeapon->CanPrimaryAttack() )
         return BCOND_NONE;
 
     if ( flDistance > pWeapon->GetWeaponInfo().m_flIdealDistance )
+        return BCOND_TOO_FAR_TO_ATTACK;
+#elif HL2MP
+    if ( flDistance > 600.0f )
         return BCOND_TOO_FAR_TO_ATTACK;
 #endif    
 
@@ -1233,6 +1262,9 @@ bool CBotDecision::IsLineOfSightClear( CBaseEntity *entity, CBaseEntity *hit ) c
 //================================================================================
 bool CBotDecision::IsLineOfSightClear( const Vector & pos, CBaseEntity * entityToIgnore, CBaseEntity *hit ) const
 {
+    if ( !IsAbleToSee( pos ) )
+        return false;
+
     // We draw a line pretending to be the bullets
     CBulletsTraceFilter traceFilter( COLLISION_GROUP_NONE );
     traceFilter.AddEntityToIgnore( GetHost() );

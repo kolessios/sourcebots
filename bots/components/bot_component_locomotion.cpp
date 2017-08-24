@@ -168,7 +168,7 @@ void CBotLocomotion::StopDrive()
 {
     // TODO: Maybe here we can do more.
     Reset();
-    GetBot()->DebugAddMessage( "Navigation Stopped" );
+    //GetBot()->DebugAddMessage( "Navigation Stopped" );
 }
 
 void CBotLocomotion::Wiggle()
@@ -746,7 +746,7 @@ void CBotLocomotion::TrackPath( const Vector &pathGoal, float deltaT )
 void CBotLocomotion::OnMoveToSuccess( const Vector &goal )
 {
     StopDrive();
-    GetBot()->DebugAddMessage( "Move Success" );
+    //GetBot()->DebugAddMessage( "Move Success" );
 }
 
 //================================================================================

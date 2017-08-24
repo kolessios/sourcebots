@@ -1116,8 +1116,9 @@ bool Utils::FindCoverPosition( Vector *vecResult, CPlayer *pPlayer, const CSpotC
 {
 	Vector vecOrigin = pPlayer->GetAbsOrigin();
 
-	if ( criteria.m_vecOrigin.IsValid() )
-		vecOrigin = criteria.m_vecOrigin;
+    if ( criteria.m_vecOrigin.IsValid() ) {
+        vecOrigin = criteria.m_vecOrigin;
+    }
 
     // NavMesh
     if ( FindNavCoverSpot(vecResult, vecOrigin, criteria, pPlayer) )

@@ -446,14 +446,14 @@ enum
 	BTASK_RESTORE_POSITION,             // Move to the saved position
 
 	BTASK_MOVE_DESTINATION,             // Move to specified destination
-    BTASK_MOVE_SPAWN,                   // Move to the place where we have appeared
 	BTASK_MOVE_LIVE_DESTINATION,        // Move to a destination/entity even if it is moving continuously.
 
 	BTASK_HUNT_ENEMY,                   // Hunt our enemy
 
-	BTASK_GET_SPOT_ASIDE,               // Find and save a place near random. (In the same NavArea where we are)
-	BTASK_GET_COVER,                    // Find and save a place of coverage
-	BTASK_GET_FAR_COVER,                // Finding and storing a distant place of coverage
+    BTASK_GET_SPAWN,                    // Save the position where we spawn
+	BTASK_GET_SPOT_ASIDE,               // Find and save a random near position. (In the same NavArea where we are)
+	BTASK_GET_COVER,                    // Find and save a cover position.
+	BTASK_GET_FAR_COVER,                // Finding and storing a distant cover position.
 
 	BTASK_AIM,                          // Aim to a specific spot
 
@@ -489,11 +489,11 @@ static const char *g_BotTasks[BLAST_TASK] =
 	"RESTORE_POSITION",
 
 	"MOVE_DESTINATION",
-    "MOVE_SPAWN",
 	"MOVE_LIVE_DESTINATION",
 
 	"HUNT_ENEMY",
 
+    "GET_SPAWN",
 	"GET_SPOT_ASIDE",
 	"GET_COVER",
 	"GET_FAR_COVER",

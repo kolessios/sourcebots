@@ -77,7 +77,6 @@ public:
     virtual bool CanCrouchAttack() const = 0;
     virtual bool ShouldCrouchAttack() const = 0;
 
-    //virtual bool IsEnemyLowPriority() const = 0;
     virtual bool IsBetterEnemy( CBaseEntity *pEnemy, CBaseEntity *pPrevious ) const = 0;
     virtual bool CanBeEnemy( CBaseEntity *pEnemy ) const = 0;
     virtual bool IsDangerousEnemy( CBaseEntity *pEnemy = NULL ) const = 0;
@@ -89,6 +88,8 @@ public:
     virtual void SwitchToBestWeapon() = 0;
     virtual bool GetNearestCover( float radius = GET_COVER_RADIUS, Vector *vecCoverSpot = NULL ) const = 0;
     virtual bool IsInCoverPosition() const = 0;
+
+    virtual float GetWeaponIdealRange( CBaseWeapon *pWeapon = NULL ) const = 0;
 
     virtual BCOND ShouldRangeAttack1() = 0;
     virtual BCOND ShouldRangeAttack2() = 0;
