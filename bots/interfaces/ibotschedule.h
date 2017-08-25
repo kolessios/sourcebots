@@ -86,6 +86,10 @@ public:
         return false;
     }
 
+    virtual float GetElapsedTime() const {
+        return m_StartTimer.GetElapsedTime();
+    }
+
     virtual bool IsWaitFinished() const {
         return m_WaitTimer.IsElapsed();
     }

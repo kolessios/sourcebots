@@ -454,7 +454,28 @@ bool Utils::GetEntityBones( CBaseEntity *pEntity, HitboxBones &bones )
         return true;
     }
 #elif HL2MP
-    // TODO
+    enum
+    {
+        TEAM_COMBINE = 2,
+        TEAM_REBELS,
+    };
+
+    if ( pEntity->IsPlayer() ) {
+        if ( pEntity->GetTeamNumber() == TEAM_REBELS ) {
+            bones.head = 0;
+            bones.chest = 0;
+            bones.leftLeg = 7;
+            bones.rightLeg = 11;
+            return true;
+        }
+        else if ( pEntity->GetTeamNumber() == TEAM_COMBINE ) {
+            bones.head = 1;
+            bones.chest = 17;
+            bones.leftLeg = 8;
+            bones.rightLeg = 12;
+            return true;
+        }
+    }
 #endif
 
     return false;

@@ -477,7 +477,7 @@ bool CBotDecision::ShouldCover() const
 //================================================================================
 bool CBotDecision::ShouldGrabWeapon( CBaseWeapon *pWeapon ) const
 {
-    if ( !pWeapon )
+    if ( pWeapon == NULL )
         return false;
 
     if ( pWeapon->GetOwner() )
@@ -844,6 +844,12 @@ bool CBotDecision::IsDangerousEnemy( CBaseEntity *pEnemy ) const
 //================================================================================
 bool CBotDecision::IsImportantEnemy( CBaseEntity * pEnemy ) const
 {
+    if ( pEnemy == NULL )
+        pEnemy = GetBot()->GetEnemy();
+
+    if ( pEnemy == NULL )
+        return false;
+
     if ( IsDangerousEnemy( pEnemy ) )
         return true;
 
@@ -1064,8 +1070,14 @@ BCOND CBotDecision::ShouldRangeAttack1()
         return BCOND_NONE;
 
     if ( GetVision() ) {
-        if ( GetVision()->GetAimTarget() != GetBot()->GetEnemy() || !GetVision()->IsAimReady() )
+        if ( GetVision()->GetAimTarget() != GetBot()->GetEnemy() )
             return BCOND_NOT_FACING_ATTACK;
+
+        if ( !GetVision()->IsAimReady() ) {
+            // We still do not have our aim on the enemy, but humans usually shoot regardless.
+            if ( RandomInt(0, 10) <= 7 )
+                return BCOND_NOT_FACING_ATTACK;
+        }
     }
 
     CBaseWeapon *pWeapon = GetHost()->GetActiveBaseWeapon();
@@ -1130,13 +1142,8 @@ BCOND CBotDecision::ShouldRangeAttack2()
     if ( bot_dont_attack.GetBool() )
         return BCOND_NONE;
 
-    if ( !GetMemory() )
-        return BCOND_NONE;
-
-    CEntityMemory *memory = GetMemory()->GetPrimaryThreat();
-
     // TODO: A way to support attacks without an active enemy
-    if ( !memory )
+    if ( HasCondition(BCOND_WITHOUT_ENEMY) )
         return BCOND_NONE;
 
     CBaseWeapon *pWeapon = GetHost()->GetActiveBaseWeapon();
@@ -1174,13 +1181,8 @@ BCOND CBotDecision::ShouldMeleeAttack1()
     if ( bot_primary_attack.GetBool() )
         return BCOND_CAN_MELEE_ATTACK1;
 
-    if ( !GetMemory() )
-        return BCOND_NONE;
-
-    CEntityMemory *memory = GetMemory()->GetPrimaryThreat();
-
     // TODO: A way to support attacks without an active enemy
-    if ( !memory )
+    if ( HasCondition(BCOND_WITHOUT_ENEMY) )
         return BCOND_NONE;
 
     CBaseWeapon *pWeapon = GetHost()->GetActiveBaseWeapon();
@@ -1189,7 +1191,7 @@ BCOND CBotDecision::ShouldMeleeAttack1()
     if ( !pWeapon || !pWeapon->IsMeleeWeapon() )
         return BCOND_NONE;
 
-    float flDistance = memory->GetDistance();
+    float flDistance = GetMemory()->GetPrimaryThreatDistance();
 
     // TODO: Criteria to attack with a melee weapon
     if ( flDistance > 120.0f )

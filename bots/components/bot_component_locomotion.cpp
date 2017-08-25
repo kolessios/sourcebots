@@ -106,8 +106,13 @@ bool CBotLocomotion::DriveTo( const char * pDesc, const Vector & vecGoal, int pr
     if ( !vecGoal.IsValid() )
         return false;
 
-    if ( GetPriority() > priority )
-        return false;
+    if ( HasDestination() ) {
+        if ( GetPriority() > priority )
+            return false;
+
+        if ( GetDestination().DistTo( vecGoal ) <= 30.0f )
+            return false;
+    }
 
     float flDistance = GetAbsOrigin().DistTo( vecGoal );
     float flTolerance = GetTolerance();

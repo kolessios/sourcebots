@@ -105,7 +105,7 @@ CPlayer *CreateBot( const char *pPlayername, const Vector *vecPosition, const QA
 
 #ifndef INSOURCE_DLL
     // This is where we implement the Artificial Intelligence. 
-    // Unless you have a different spawn (team/class selection) system, this should work.
+    // Unless you have a different spawn system (team/class selection), this should work.
     if ( !pPlayer->GetBotController() ) {
         pPlayer->SetUpBot();
 

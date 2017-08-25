@@ -42,6 +42,7 @@ void IBotSchedule::Start()
 
     m_bStarted = true;
     m_StartTimer.Start();
+    m_Interrupts.Purge();
 
     if ( GetLocomotion() ) {
         GetLocomotion()->StopDrive();
@@ -67,7 +68,7 @@ void IBotSchedule::Finish()
 
     // Limpiamos todo
     m_Tasks.Purge();
-    m_Interrupts.Purge();
+    //m_Interrupts.Purge();
 
     GetBot()->DebugAddMessage( "Scheduled %s Finished", g_BotSchedules[GetID()] );
 
@@ -112,6 +113,15 @@ float IBotSchedule::GetInternalDesire()
 
         if ( ItsImportant() )
             return m_flLastDesire;
+    }
+    else {
+        FOR_EACH_VEC( m_Interrupts, it )
+        {
+            BCOND condition = m_Interrupts.Element( it );
+
+            if ( GetBot()->HasCondition( condition ) )
+                return BOT_DESIRE_NONE;
+        }
     }
 
 	m_flLastDesire = GetDesire();

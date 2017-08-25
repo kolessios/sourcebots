@@ -43,19 +43,19 @@ void CBotSkill::SetLevel( int skill )
 #ifdef HL2MP
         case SKILL_EASY:
             SetMemoryDuration( 7.0f );
-            SetPanicDuration( RandomFloat( 0.5f, 1.0f ) );
+            SetPanicDuration( RandomFloat( 0.3f, 0.6f ) );
             SetAlertDuration( RandomFloat( 3.0f, 5.0f ) );
             SetMinAimSpeed( AIM_SPEED_LOW );
             SetMaxAimSpeed( AIM_SPEED_NORMAL );
             SetMinAttackRate( 0.005f );
-            SetMaxAttackRate( 0.01f );
+            SetMaxAttackRate( 0.05f );
             SetFavoriteHitbox( HITGROUP_STOMACH );
             break;
 
         case SKILL_MEDIUM:
         default:
             SetMemoryDuration( 10.0f );
-            SetPanicDuration( RandomFloat( 0.2, 0.5f ) );
+            SetPanicDuration( RandomFloat( 0.1f, 0.4f ) );
             SetAlertDuration( RandomFloat( 3.0f, 6.0f ) );
             SetMinAimSpeed( AIM_SPEED_LOW );
             SetMaxAimSpeed( AIM_SPEED_FAST );
@@ -66,7 +66,7 @@ void CBotSkill::SetLevel( int skill )
 
         case SKILL_HARD:
             SetMemoryDuration( 13.0f );
-            SetPanicDuration( RandomFloat( 0.1f, 0.2f ) );
+            SetPanicDuration( RandomFloat( 0.0f, 0.1f ) );
             SetAlertDuration( RandomFloat( 4.0f, 7.0f ) );
             SetMinAimSpeed( AIM_SPEED_NORMAL );
             SetMaxAimSpeed( AIM_SPEED_VERYFAST );

@@ -353,7 +353,7 @@ void CBotVision::LookNavigation()
     if ( !GetLocomotion()->HasDestination() )
         return;
 
-    Vector lookAt( GetLocomotion()->GetNextSpot() );
+    Vector lookAt = GetLocomotion()->GetNextSpot();
     lookAt.z = GetHost()->EyePosition().z;
 
     int priority = PRIORITY_LOW;

@@ -15,6 +15,10 @@
 
 #include "bots\bot_defs.h"
 
+#ifdef time
+#undef time
+#endif
+
 class IBot;
 
 //================================================================================
@@ -207,6 +211,9 @@ public:
     bool IsExpired() {
         // Never expires
         if ( m_flForget <= 0.0f )
+            return false;
+
+        if ( !m_LastUpdate.HasStarted() )
             return false;
 
         return (m_LastUpdate.GetElapsedTime() >= m_flForget);
