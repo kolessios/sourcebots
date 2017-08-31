@@ -78,8 +78,6 @@ DECLARE_REPLICATED_COMMAND( bot_far_distance, "2500", "" )
 //================================================================================
 CPlayer *CreateBot( const char *pPlayername, const Vector *vecPosition, const QAngle *angles )
 {
-    MDLCACHE_CRITICAL_SECTION();
-
     if ( !pPlayername ) {
         pPlayername = m_botNames[RandomInt( 0, ARRAYSIZE( m_botNames ) - 1 )];
         pPlayername = UTIL_VarArgs( "%s Bot", pPlayername );
@@ -99,23 +97,20 @@ CPlayer *CreateBot( const char *pPlayername, const Vector *vecPosition, const QA
     pPlayer->ClearFlags();
     pPlayer->AddFlag( FL_CLIENT | FL_FAKECLIENT );
 
+    // This is where we implement the Artificial Intelligence. 
+    pPlayer->SetUpBot();
+    Assert( pPlayer->GetBotController() );
+
+    if ( !pPlayer->GetBotController() ) {
+        Warning( "There was a problem creating a bot. The player was created but the controller could not be created." );
+        return NULL;
+    }
+
+    pPlayer->Spawn();
+
     if ( vecPosition ) {
         pPlayer->Teleport( vecPosition, angles, NULL );
     }
-
-#ifndef INSOURCE_DLL
-    // This is where we implement the Artificial Intelligence. 
-    // Unless you have a different spawn system (team/class selection), this should work.
-    if ( !pPlayer->GetBotController() ) {
-        pPlayer->SetUpBot();
-
-        Assert( pPlayer->GetBotController() );
-
-        if ( pPlayer->GetBotController() ) {
-            pPlayer->GetBotController()->Spawn();
-        }
-    }
-#endif
 
     ++g_botID;
     return pPlayer;
@@ -123,8 +118,16 @@ CPlayer *CreateBot( const char *pPlayername, const Vector *vecPosition, const QA
 
 //================================================================================
 //================================================================================
+CBot::CBot( CBasePlayer *parent ) : BaseClass( parent )
+{
+}
+
+//================================================================================
+//================================================================================
 void CBot::Spawn()
 {
+    Assert( GetProfile() );
+
     m_nComponents.Purge();
     m_nSchedules.Purge();
 
@@ -137,7 +140,7 @@ void CBot::Spawn()
     }
 
     m_cmd = NULL;
-    m_nLastCmd = NULL;
+    m_lastCmd = NULL;
 
     m_iState = STATE_IDLE;
     m_iTacticalMode = TACTICAL_MODE_NONE;
@@ -148,10 +151,6 @@ void CBot::Spawn()
 
     m_iRepeatedDamageTimes = 0;
     m_flDamageAccumulated = 0.0f;
-
-    if ( !GetSkill() ) {
-        SetSkill( 0 );
-    }
 
     if ( GetMemory() ) {
         GetMemory()->UpdateDataMemory( MEMORY_SPAWN_POSITION, GetAbsOrigin() );
@@ -175,24 +174,24 @@ void CBot::Update()
         return;
     }
 
-    m_cmd = new CBotCmd();
-    m_cmd->viewangles = GetHost()->pl.v_angle;
+    m_cmd = new CUserCmd();
+    m_cmd->viewangles = GetHost()->EyeAngles();
 
-    if ( ShouldThink() ) {
-        Think( m_cmd );
-    }
+    Upkeep();
 
-	PlayerMove( m_cmd );
+    if ( CanRunAI() ) RunAI();
+
+    PlayerMove( m_cmd );
 }
 
 //================================================================================
 // Simulates all input as if it were a player
 //================================================================================
-void CBot::PlayerMove( CBotCmd *cmd )
+void CBot::PlayerMove( CUserCmd *cmd )
 {
     VPROF_BUDGET( "PlayerMove", VPROF_BUDGETGROUP_BOTS );
 
-	m_nLastCmd = m_cmd;
+	m_lastCmd = m_cmd;
 
     // This is not necessary if the player is a human
     if ( !GetHost()->IsBot() )
@@ -204,14 +203,18 @@ void CBot::PlayerMove( CBotCmd *cmd )
     GetHost()->RemoveEffects( EF_NOINTERP );
 #endif
 
-    RunPlayerMove( cmd );
+    // Save off the CUserCmd to execute later
+    GetHost()->ProcessUsercmds( cmd, 1, 1, 0, false );
 }
 
 //================================================================================
 // Returns if we can process Artificial Intelligence
 //================================================================================
-bool CBot::ShouldThink()
+bool CBot::CanRunAI()
 {
+    if ( bot_frozen.GetBool() )
+        return false;
+
     if ( !GetHost()->IsAlive() )
         return false;
 
@@ -229,18 +232,18 @@ bool CBot::ShouldThink()
     if ( GetLocomotion() && TheNavMesh->GetNavAreaCount() == 0 )
         return false;
 
-    if ( bot_frozen.GetBool() )
-        return false;
-
     if ( GetFollow() && GetFollow()->IsFollowingBot() ) {
         CPlayer *pLeader = ToInPlayer( GetFollow()->GetEntity() );
 
         if ( pLeader && pLeader->GetBotController() ) {
-            return pLeader->GetBotController()->ShouldThink();
+            return pLeader->GetBotController()->CanRunAI();
         }
     }
 
 #ifdef INSOURCE_DLL
+    if ( !GetHost()->IsActive() )
+        return false;
+
     if ( GetPerformance() == BOT_PERFORMANCE_SLEEP_PVS ) {
         CHumanPVSFilter filter( GetAbsOrigin() );
 
@@ -249,28 +252,60 @@ bool CBot::ShouldThink()
     }
 #endif
 
-    return true;
+    if ( ((gpGlobals->tickcount + GetHost()->entindex()) % 2) == 0 )
+        return true;
+
+    return false;
 }
 
 //================================================================================
-// I think then I exist
+// All the processing that is required and preferably light for the engine.
 //================================================================================
-void CBot::Think( CBotCmd* &cmd )
+void CBot::Upkeep()
 {
+    UpdateComponents( true );
+}
+
+//================================================================================
+// All the processing that can be heavy for the engine.
+//================================================================================
+void CBot::RunAI()
+{
+    m_RunTimer.Start();
+
     ApplyDebugCommands();
 
     SelectPreConditions();
 
-    FOR_EACH_COMPONENT
-    {
-        m_nComponents[it]->Update();
-    }
+    UpdateComponents( false );
 
     SelectPostConditions();
 
     UpdateSchedule();
 
+    m_RunTimer.End();
+
     DebugDisplay();
+}
+
+//================================================================================
+//================================================================================
+void CBot::UpdateComponents( bool important )
+{
+    CFastTimer timer;
+
+    FOR_EACH_COMPONENT
+    {
+        if ( important && !m_nComponents[it]->ItsImportant() )
+            continue;
+        else if ( !important && m_nComponents[it]->ItsImportant() )
+            continue;
+        
+        timer.Start();
+        m_nComponents[it]->Update();
+        timer.End();
+        m_nComponents[it]->SetUpdateCost( timer.GetDuration().GetMillisecondsF() );
+    }
 }
 
 //================================================================================
@@ -376,7 +411,7 @@ void CBot::MimicThink( int playerIndex )
     DebugDisplay();
 
     const CUserCmd *playercmd = pPlayer->GetLastUserCommand();
-    m_cmd = new CBotCmd();
+    m_cmd = new CUserCmd();
 
     m_cmd->command_number = playercmd->command_number;
     m_cmd->tick_count = playercmd->tick_count;
@@ -624,7 +659,7 @@ CON_COMMAND_F( bot_debug_drive_random, "Orders all bots to move at random sites"
 
             Vector vecGoal( pArea->GetCenter() );
 
-            if ( !pBot->GetLocomotion()->IsPotentiallyTraversable( vecFrom, vecGoal ) )
+            if ( !pBot->GetLocomotion()->IsTraversable( vecFrom, vecGoal ) )
                 continue;
 
             pBot->GetLocomotion()->DriveTo( "bot_debug_drive_random", pArea );

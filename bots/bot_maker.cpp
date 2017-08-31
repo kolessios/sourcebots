@@ -20,8 +20,10 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+extern ConVar ai_inhibit_spawners;
+
 //================================================================================
-// Información y Red
+// Entity and network information
 //================================================================================
 
 LINK_ENTITY_TO_CLASS( info_bot_spawn, CBotSpawn );
@@ -65,19 +67,18 @@ BEGIN_DATADESC( CBotSpawn )
 END_DATADESC()
 
 //================================================================================
-// Creación en el mapa
 //================================================================================
 void CBotSpawn::Spawn()
 {
     m_bDisabled = false;
-	m_nBot = NULL;
+    m_pPlayer = NULL;
 
-    // No somos solidos
     SetSolid( SOLID_NONE );
 
-    // Creamos el Bot ahora mismo!
-    if ( HasSpawnFlags(SF_SPAWN_IMMEDIATELY) )
+    // Create the bot immediately
+    if ( HasSpawnFlags( SF_SPAWN_IMMEDIATELY ) ) {
         g_EventQueue.AddEvent( this, "Spawn", 1.0f, this, this );
+    }
 }
 
 //================================================================================
@@ -85,9 +86,8 @@ void CBotSpawn::Spawn()
 void CBotSpawn::DeathNotice( CBaseEntity *pVictim )
 {
     CPlayer *pPlayer = ToInPlayer( pVictim );
-    AssertMsg( pPlayer && pPlayer->IsBot(), "info_bot_spawn ha recibido una notificación de muerte de una entidad que no es un bot" );
+    AssertMsg( pPlayer && pPlayer->IsBot(), "Death Notice from an entity that is not a Bot." );
 
-    // El Bot ha muerto :(
     m_OnBotDead.FireOutput( this, this );
 
     if ( HasSpawnFlags( SF_KICK_ON_DEAD ) ) {
@@ -97,8 +97,8 @@ void CBotSpawn::DeathNotice( CBaseEntity *pVictim )
         engine->ServerCommand( UTIL_VarArgs( "kickid %i\n", pPlayer->GetPlayerInfo()->GetUserID() ) );
 #endif
 
-        if ( pPlayer == GetBot() ) {
-            m_nBot = NULL;
+        if ( pPlayer == GetPlayer() ) {
+            m_pPlayer = NULL;
         }
     }
     else {
@@ -107,12 +107,10 @@ void CBotSpawn::DeathNotice( CBaseEntity *pVictim )
 }
 
 //================================================================================
-// Devuelve si podemos crear un Bot
+// Returns if we can create a Bot.
 //================================================================================
 bool CBotSpawn::CanMake( bool bRespawn )
 {
-    ConVarRef ai_inhibit_spawners( "ai_inhibit_spawners" );
-
     if ( ai_inhibit_spawners.GetBool() )
         return false;
 
@@ -120,15 +118,15 @@ bool CBotSpawn::CanMake( bool bRespawn )
         return false;
 
     if ( !bRespawn ) {
-        if ( HasSpawnFlags( SF_ONLY_ONE_ACTIVE_BOT ) ) {
-            if ( GetBot() )
-                return false;
+        if ( HasSpawnFlags( SF_ONLY_ONE_ACTIVE_BOT ) && GetPlayer() ) {
+            return false;
         }
     }
 
     if ( HasSpawnFlags( SF_HIDE_FROM_PLAYERS ) ) {
 #ifdef INSOURCE_DLL
-        if ( ThePlayersSystem->IsEyesVisible( this ) )
+        CUsersRecipientFilter filter;
+        if ( ThePlayersSystem->IsAbleToSee( this, filter ) )
             return false;
 #else
         for ( int it = 0; it <= gpGlobals->maxClients; ++it ) {
@@ -150,7 +148,7 @@ bool CBotSpawn::CanMake( bool bRespawn )
 }
 
 //================================================================================
-// Crea el Bot en el lugar de la entidad
+// Create a Bot
 //================================================================================
 void CBotSpawn::SpawnBot()
 {
@@ -159,40 +157,21 @@ void CBotSpawn::SpawnBot()
 
     const char *pPlayername = ( m_nBotPlayername != NULL_STRING ) ? STRING(m_nBotPlayername) : NULL;
 
-    m_nBot = CreateBot( pPlayername, NULL, NULL );
-    Assert( m_nBot );
+    m_pPlayer = CreateBot( pPlayername, NULL, NULL );
+    Assert( m_pPlayer );
 
-    if ( !m_nBot ) {
+    if ( !m_pPlayer )
         return;
-    }
 
-    PreparePlayer();
+    SetUpBot();
 }
 
 //================================================================================
+// Prepare the Bot with the configuration provided
 //================================================================================
-void CBotSpawn::PreparePlayer()
+void CBotSpawn::SetUpBot()
 {
-    // Nombre para referirse al jugador
-    if ( m_nBotTargetname != NULL_STRING ) {
-        GetBot()->SetName( m_nBotTargetname );
-    }
-
-    // Establecemos el equipo
-    // Esto es necesario para la creación de la I.A.
-    GetBot()->ChangeTeam( m_iBotTeam );
-
-#ifdef INSOURCE_DLL
-    GetBot()->SetPlayerClass( m_iBotClass );
-#endif
-
-    // Creamos la I.A. por primera vez
-    if ( !GetBot()->GetBotController() ) {
-        GetBot()->SetUpBot();
-        GetBot()->GetBotController()->Spawn();
-    }
-
-    IBot *pBot = GetBot()->GetBotController();
+    IBot *pBot = GetPlayer()->GetBotController();
     Assert( pBot );
 
     pBot->SetSkill( m_iBotSkill );
@@ -206,7 +185,7 @@ void CBotSpawn::PreparePlayer()
     }
 
     if ( m_iBlockLookAround > 0 ) {
-        if ( pBot->GetVision() ) {
+        if ( pBot->GetMemory() ) {
             pBot->GetMemory()->UpdateDataMemory( "BlockLookAround", m_iBlockLookAround, m_iBlockLookAround );
         }
     }
@@ -221,19 +200,24 @@ void CBotSpawn::PreparePlayer()
         pBot->SetPeaceful( true );
     }
 
-    GetBot()->SetOwnerEntity( this );
-    m_OnSpawn.Set( GetBot(), GetBot(), this );
+    if ( m_nBotTargetname != NULL_STRING ) {
+        GetPlayer()->SetName( m_nBotTargetname );
+    }
+
+    GetPlayer()->ChangeTeam( m_iBotTeam );
 
 #ifdef INSOURCE_DLL
-    // Accede a la partida
-    GetBot()->EnterToGame( true );
+    GetPlayer()->SetPlayerClass( m_iBotClass );
 #endif
 
-    if ( m_nBotSquadname != NULL_STRING ) {
-        GetBot()->SetSquad( STRING( m_nBotSquadname ) );
+    GetPlayer()->SetOwnerEntity( this );
 
-        if ( m_bIsLeader )
-            GetBot()->GetSquad()->SetLeader( GetBot() );
+    if ( m_nBotSquadname != NULL_STRING ) {
+        GetPlayer()->SetSquad( STRING( m_nBotSquadname ) );
+
+        if ( m_bIsLeader ) {
+            GetPlayer()->GetSquad()->SetLeader( GetPlayer() );
+        }
     }
 
     if ( HasSpawnFlags( SF_USE_SPAWNER_POSITION ) ) {
@@ -241,21 +225,23 @@ void CBotSpawn::PreparePlayer()
             pBot->GetMemory()->UpdateDataMemory( "SpawnPosition", GetAbsOrigin(), -1.0f );
         }
 
-        GetBot()->Teleport( &GetAbsOrigin(), &GetAbsAngles(), NULL );
+        GetPlayer()->Teleport( &GetAbsOrigin(), &GetAbsAngles(), NULL );
     }
 
     if ( m_nAdditionalEquipment != NULL_STRING ) {
-        GetBot()->GiveNamedItem( STRING( m_nAdditionalEquipment ) );
+        GetPlayer()->GiveNamedItem( STRING( m_nAdditionalEquipment ) );
 
 #ifdef INSOURCE_DLL
 #ifdef DEBUG
-        GetBot()->GiveAmmo( 60, "AMMO_TYPE_SNIPERRIFLE" );
-        GetBot()->GiveAmmo( 300, "AMMO_TYPE_ASSAULTRIFLE" );
-        GetBot()->GiveAmmo( 999, "AMMO_TYPE_PISTOL" );
-        GetBot()->GiveAmmo( 300, "AMMO_TYPE_SHOTGUN" );
+        GetPlayer()->GiveAmmo( 60, "AMMO_TYPE_SNIPERRIFLE" );
+        GetPlayer()->GiveAmmo( 300, "AMMO_TYPE_ASSAULTRIFLE" );
+        GetPlayer()->GiveAmmo( 999, "AMMO_TYPE_PISTOL" );
+        GetPlayer()->GiveAmmo( 300, "AMMO_TYPE_SHOTGUN" );
 #endif
 #endif
     }
+
+    m_OnSpawn.Set( GetPlayer(), GetPlayer(), this );
 }
 
 //================================================================================
@@ -269,15 +255,17 @@ void CBotSpawn::InputSpawn( inputdata_t &inputdata )
 //================================================================================
 void CBotSpawn::InputRespawn( inputdata_t & inputdata ) 
 {
-	if ( !GetBot() )
-		return;
-
-    if ( !CanMake(true) ) {
-        g_EventQueue.AddEvent( this, "Respawn", 1.0f, this, this );
+    if ( !GetPlayer() ) {
+        SpawnBot();
         return;
     }
 
-	PreparePlayer();
+    /*if ( !CanMake(true) ) {
+        g_EventQueue.AddEvent( this, "Respawn", 1.0f, this, this );
+        return;
+    }*/
+
+	SetUpBot();
 }
 
 //================================================================================
@@ -307,9 +295,9 @@ void CBotSpawn::InputSetSkill( inputdata_t &inputdata )
 {
     m_iBotSkill = inputdata.value.Int();
 
-    if ( GetBot() && GetBot()->GetBotController() )
+    if ( GetPlayer() && GetPlayer()->GetBotController() )
     {
-        GetBot()->GetBotController()->SetSkill( m_iBotSkill );
+        GetPlayer()->GetBotController()->SetSkill( m_iBotSkill );
     }
 }
 
@@ -319,8 +307,8 @@ void CBotSpawn::InputSetTacticalMode( inputdata_t & inputdata )
 {
     m_iBotTacticalMode = inputdata.value.Int();
 
-    if ( GetBot() && GetBot()->GetBotController() )
-        GetBot()->GetBotController()->SetTacticalMode( m_iBotTacticalMode );
+    if ( GetPlayer() && GetPlayer()->GetBotController() )
+        GetPlayer()->GetBotController()->SetTacticalMode( m_iBotTacticalMode );
 }
 
 //================================================================================
@@ -329,8 +317,8 @@ void CBotSpawn::InputBlockLook( inputdata_t &inputdata )
 {
     m_iBlockLookAround = inputdata.value.Int();
 
-    if ( GetBot() && GetBot()->GetBotController() && GetBot()->GetBotController()->GetMemory() ) {
-        GetBot()->GetBotController()->GetMemory()->UpdateDataMemory( "BlockLookAround", m_iBlockLookAround, -1.0f );
+    if ( GetPlayer() && GetPlayer()->GetBotController() && GetPlayer()->GetBotController()->GetMemory() ) {
+        GetPlayer()->GetBotController()->GetMemory()->UpdateDataMemory( "BlockLookAround", m_iBlockLookAround, -1.0f );
     }
 }
 
@@ -340,9 +328,9 @@ void CBotSpawn::InputSetSquad( inputdata_t &inputdata )
 {
     m_nBotSquadname = MAKE_STRING( inputdata.value.String() );
 
-    if ( GetBot() && GetBot()->GetBotController() ) {
-        GetBot()->GetBotController()->SetSquad( inputdata.value.String() );
-        GetBot()->GetBotController()->SetSkill( m_iBotSkill );
+    if ( GetPlayer() && GetPlayer()->GetBotController() ) {
+        GetPlayer()->GetBotController()->SetSquad( inputdata.value.String() );
+        GetPlayer()->GetBotController()->SetSkill( m_iBotSkill );
     }
 }
 
@@ -352,8 +340,8 @@ void CBotSpawn::InputDisableMovement( inputdata_t &inputdata )
 {
     m_bDisabledMovement = true;
 
-    if ( GetBot() && GetBot()->GetBotController() && GetBot()->GetBotController()->GetLocomotion() ) {
-        GetBot()->GetBotController()->GetLocomotion()->SetDisabled( m_bDisabledMovement );
+    if ( GetPlayer() && GetPlayer()->GetBotController() && GetPlayer()->GetBotController()->GetLocomotion() ) {
+        GetPlayer()->GetBotController()->GetLocomotion()->SetDisabled( m_bDisabledMovement );
     }
 }
 
@@ -363,36 +351,36 @@ void CBotSpawn::InputEnableMovement( inputdata_t &inputdata )
 {
     m_bDisabledMovement = false;
 
-    if ( GetBot() && GetBot()->GetBotController() && GetBot()->GetBotController()->GetLocomotion() ) {
-        GetBot()->GetBotController()->GetLocomotion()->SetDisabled( m_bDisabledMovement );
+    if ( GetPlayer() && GetPlayer()->GetBotController() && GetPlayer()->GetBotController()->GetLocomotion() ) {
+        GetPlayer()->GetBotController()->GetLocomotion()->SetDisabled( m_bDisabledMovement );
     }
 }
 
 void CBotSpawn::InputStartPeaceful( inputdata_t & inputdata )
 {
-    if ( !GetBot() )
+    if ( !GetPlayer() )
         return;
 
-    GetBot()->GetBotController()->SetPeaceful( true );
+    GetPlayer()->GetBotController()->SetPeaceful( true );
 }
 
 void CBotSpawn::InputStopPeaceful( inputdata_t & inputdata )
 {
-    if ( !GetBot() )
+    if ( !GetPlayer() )
         return;
 
-    GetBot()->GetBotController()->SetPeaceful( false );
+    GetPlayer()->GetBotController()->SetPeaceful( false );
 }
 
 void CBotSpawn::InputDriveTo( inputdata_t & inputdata )
 {
-    if( !GetBot() )
+    if( !GetPlayer() )
         return;
 
-    if ( !GetBot()->GetBotController()->GetLocomotion() )
+    if ( !GetPlayer()->GetBotController()->GetLocomotion() )
         return;
 
     CBaseEntity *pTarget = inputdata.value.Entity().Get();
 
-    GetBot()->GetBotController()->GetLocomotion()->DriveTo( "Input DriveTo", pTarget, PRIORITY_CRITICAL );
+    GetPlayer()->GetBotController()->GetLocomotion()->DriveTo( "Input DriveTo", pTarget, PRIORITY_CRITICAL );
 }

@@ -193,7 +193,9 @@ void CBot::UpdateSchedule()
 
     if ( GetActiveSchedule() ) {
         if ( GetActiveSchedule() == pSchedule ) {
+            m_ScheduleTimer.Start();
             GetActiveSchedule()->Update();
+            m_ScheduleTimer.End();
             return;
         }
         else {
@@ -201,9 +203,11 @@ void CBot::UpdateSchedule()
         }
     }
 
+    m_ScheduleTimer.Start();
     m_nActiveSchedule = pSchedule;
     m_nActiveSchedule->Start();
     m_nActiveSchedule->Update();
+    m_ScheduleTimer.End();
 }
 
 //================================================================================
@@ -447,20 +451,18 @@ void CBot::SelectEnemyConditions()
         CBaseEntity *pBlockedBy = NULL;
 
         // No direct line of sight with our enemy
-        if ( !GetDecision()->IsLineOfSightClear( memory->GetEntity(), pBlockedBy ) ) {
+        if ( !GetDecision()->IsLineOfSightClear( memory->GetEntity(), &pBlockedBy ) ) {
             SetCondition( BCOND_ENEMY_OCCLUDED );
 
-            int relationship = TheGameRules->PlayerRelationship( GetHost(), pBlockedBy );
-
             // A friend is in front of us!
-            if ( relationship == GR_ALLY || relationship == GR_TEAMMATE ) {
+            if ( GetDecision()->IsFriend( pBlockedBy ) ) {
                 SetCondition( BCOND_ENEMY_OCCLUDED_BY_FRIEND );
             }
         }
     }
 
     if ( !GetEnemy()->IsAlive() ) {
-        if ( GetSkill()->IsEasy() ) {
+        if ( GetProfile()->IsEasy() ) {
             if ( GetEnemy()->m_lifeState == LIFE_DEAD ) {
                 SetCondition( BCOND_ENEMY_DEAD );
             }
@@ -593,7 +595,7 @@ void CBot::OnMemberDeath( CPlayer *pMember, const CTakeDamageInfo & info )
         return;
 
     // ¡Amigo! ¡Noo! :'(
-    if ( !GetSkill()->IsHardest() && memory->IsVisible() ) {
+    if ( !GetProfile()->IsHardest() && memory->IsVisible() ) {
         GetVision()->LookAt( "Squad Member Death", pMember->GetAbsOrigin(), PRIORITY_VERY_HIGH, RandomFloat( 0.3f, 1.5f ) );
     }
 }

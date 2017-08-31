@@ -57,9 +57,7 @@ void CBotVision::Process()
     }
 
     int speed = GetAimSpeed();
-    CBotCmd *cmd = GetBot()->GetUserCommand();
-
-    QAngle viewAngles( cmd->viewangles );  
+    QAngle viewAngles = GetHost()->EyeAngles();
     Vector lookPosition( m_vecLookGoal - GetHost()->EyePosition() );
     QAngle lookAngle;
     VectorAngles( lookPosition, lookAngle );
@@ -142,9 +140,7 @@ void CBotVision::Process()
         m_bAimReady = false;
     }
 
-    cmd->viewangles = viewAngles;
-    Utils::DeNormalizeAngle( cmd->viewangles.x );
-    Utils::DeNormalizeAngle( cmd->viewangles.y );
+    GetHost()->SnapEyeAngles( viewAngles );
 }
 
 //================================================================================
@@ -169,7 +165,7 @@ void CBotVision::GetEntityBestAimPosition( CBaseEntity *pEntity, Vector &vecLook
     }
     else if ( pEntity->MyCombatCharacterPointer() ) {
         // If it is a character, we try to aim to a hitbox
-        Utils::GetHitboxPosition( pEntity, vecLookAt, GetSkill()->GetFavoriteHitbox() );
+        Utils::GetHitboxPosition( pEntity, vecLookAt, GetProfile()->GetFavoriteHitbox() );
     }
     else {
         vecLookAt = pEntity->WorldSpaceCenter();
@@ -180,13 +176,13 @@ void CBotVision::GetEntityBestAimPosition( CBaseEntity *pEntity, Vector &vecLook
         return;
 
     // We added a margin of error when aiming.
-    if ( GetSkill()->GetLevel() < SKILL_HARDEST ) {
+    if ( GetProfile()->GetSkill() < SKILL_HARDEST ) {
         float errorRange = 0.0f;
 
-        if ( GetSkill()->GetLevel() >= SKILL_HARD ) {
+        if ( GetProfile()->GetSkill() >= SKILL_HARD ) {
             errorRange = RandomFloat( 0.0f, 3.5f );
         }
-        if ( GetSkill()->IsMedium() ) {
+        if ( GetProfile()->IsMedium() ) {
             errorRange = RandomFloat( 2.0f, 8.0f );
         }
         else {
@@ -204,7 +200,7 @@ void CBotVision::GetEntityBestAimPosition( CBaseEntity *pEntity, Vector &vecLook
 //================================================================================
 int CBotVision::GetAimSpeed()
 {
-    int speed = GetSkill()->GetMinAimSpeed();
+    int speed = GetProfile()->GetMinAimSpeed();
 
     if ( speed == AIM_SPEED_INSTANT ) {
         return AIM_SPEED_INSTANT;
@@ -217,7 +213,7 @@ int CBotVision::GetAimSpeed()
     }
 
     // Adrenaline?
-    if ( !GetSkill()->IsEasy() ) {
+    if ( !GetProfile()->IsEasy() ) {
         if ( IsCombating() ) {
             ++speed;
         }
@@ -229,7 +225,7 @@ int CBotVision::GetAimSpeed()
 #endif
     }
 
-    speed = clamp( speed, GetSkill()->GetMinAimSpeed(), GetSkill()->GetMaxAimSpeed() );
+    speed = clamp( speed, GetProfile()->GetMinAimSpeed(), GetProfile()->GetMaxAimSpeed() );
     return speed;
 }
 
@@ -305,6 +301,9 @@ bool CBotVision::LookAt( const char *pDesc, CBaseEntity *pTarget, const Vector &
 bool CBotVision::LookAt( const char *pDesc, const Vector &vecGoal, int priority, float duration )
 {
     if ( !vecGoal.IsValid() )
+        return false;
+
+    if ( m_vecLookGoal == vecGoal )
         return false;
 
     if ( GetPriority() > priority )

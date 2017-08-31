@@ -245,7 +245,6 @@ public:
 
 #define GET_COVER_RADIUS 1500.0f
 
-
 //================================================================================
 // Bot Names
 // TODO: One way to change these names without editing the code. (Script file for example)
@@ -346,7 +345,8 @@ enum
     BOT_COMPONENT_MEMORY,
     BOT_COMPONENT_ATTACK,
     BOT_COMPONENT_DECISION,
-    LAST_COMPONENT,
+
+    LAST_COMPONENT
 };
 
 //================================================================================
@@ -466,7 +466,6 @@ enum
 	BTASK_WALK,                         // -walk & -speed
 	BTASK_RELOAD,                       // Reload our weapon and wait for it to end.
     BTASK_RELOAD_SAFE,                  // Reload our weapon and wait for it to end. (Only if there are no enemies nearby)
-	BTASK_RELOAD_ASYNC,                 // Reload without waiting
 	BTASK_HEAL,                         // Heal (TODO: Only gives health to itself)
 
 	BTASK_CALL_FOR_BACKUP,              // Request reinforcements (TODO)
@@ -509,7 +508,6 @@ static const char *g_BotTasks[BLAST_TASK] =
     "WALK",
     "RELOAD",
     "RELOAD_SAFE",
-    "RELOAD_ASYNC",
     "HEAL",
 
     "CALL_FOR_BACKUP"

@@ -21,7 +21,7 @@
 BEGIN_SETUP_SCHEDULE( CHideAndReloadSchedule )
     ADD_TASK( BTASK_SAVE_POSITION,	  NULL )
 	ADD_TASK( BTASK_RUN,	          NULL )
-	ADD_TASK( BTASK_RELOAD_ASYNC,	  NULL )
+	ADD_TASK( BTASK_RELOAD,	          true )
     ADD_TASK( BTASK_GET_COVER,		  NULL )
 	ADD_TASK( BTASK_MOVE_DESTINATION, NULL )
 	ADD_TASK( BTASK_CROUCH,			  NULL )
@@ -65,7 +65,7 @@ void CurrentSchedule::TaskRun()
         {
             // Si no somos noob, entonces cancelamos estas tareas
             // en cuanto tengamos el arma recargada.
-            if ( !GetSkill()->IsEasy() ) {
+            if ( !GetProfile()->IsEasy() ) {
                 CBaseWeapon *pWeapon = GetHost()->GetActiveBaseWeapon();
 
                 // Sin arma

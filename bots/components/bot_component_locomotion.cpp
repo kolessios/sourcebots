@@ -120,6 +120,11 @@ bool CBotLocomotion::DriveTo( const char * pDesc, const Vector & vecGoal, int pr
     if ( flDistance <= flTolerance )
         return false;
 
+    if ( !IsTraversable( GetAbsOrigin(), vecGoal ) ) {
+        GetBot()->DebugAddMessage( "%s: Invalid route", pDesc );
+        return false;
+    }
+
     m_vecDestination = vecGoal;
     m_vecNextSpot.Invalidate();
     m_pDescription = pDesc;
@@ -127,7 +132,6 @@ bool CBotLocomotion::DriveTo( const char * pDesc, const Vector & vecGoal, int pr
     SetPriority( priority );
     SetTolerance( tolerance );
 
-    //GetBot()->DebugAddMessage( "DriveTo: %s (%i) (tolerance: %.2f)", pDesc, priority, tolerance );
     return true;
 }
 
@@ -258,7 +262,7 @@ void CBotLocomotion::ComputePath()
     Vector from = GetAbsOrigin();
     Vector to = GetDestination();
 
-    BotPathCost cost( GetHost() );
+    CSimpleBotPathCost cost( GetBot() );
 
     GetPathFollower()->Reset();
     GetPath()->Compute( from, to, cost );
@@ -353,8 +357,7 @@ float CBotLocomotion::GetMaxJumpHeight() const
 
 float CBotLocomotion::GetDeathDropHeight() const
 {
-    // TODO: Find value
-    return 0.0f;
+    return DeathDrop;
 }
 
 float CBotLocomotion::GetRunSpeed() const
@@ -392,36 +395,41 @@ bool CBotLocomotion::IsOnTolerance() const
 
 bool CBotLocomotion::IsAreaTraversable( const CNavArea * area ) const
 {
-    if ( !area )
+    if ( area == NULL )
         return false;
 
     if ( area->IsBlocked( TEAM_ANY ) || area->IsBlocked( GetHost()->GetTeamNumber() ) )
-        return false;
-
-    if ( area->HasAvoidanceObstacle() )
         return false;
 
     // TODO: More checks!
     return true;
 }
 
-bool CBotLocomotion::IsPotentiallyTraversable( const Vector & from, const Vector & to ) const
+bool CBotLocomotion::IsAreaTraversable( const CNavArea * from, const CNavArea * to ) const
 {
-    CNavArea *fromArea = TheNavMesh->GetNearestNavArea( from );
-    CNavArea *toArea = TheNavMesh->GetNearestNavArea( to );
-
-    if ( !fromArea || !toArea )
+    if ( from == NULL || to == NULL )
         return false;
 
-    if ( !IsAreaTraversable( fromArea ) || !IsAreaTraversable( toArea ) )
+    if ( !IsAreaTraversable( from ) || !IsAreaTraversable( to ) )
+        return false;
+
+    if ( !from->IsConnected( to, NUM_DIRECTIONS ) )
         return false;
 
     // Do not go from one jump area to another
-    if ( (fromArea->GetAttributes() & NAV_MESH_JUMP) && (toArea->GetAttributes() & NAV_MESH_JUMP) )
+    if ( (from->GetAttributes() & NAV_MESH_JUMP) && (to->GetAttributes() & NAV_MESH_JUMP) )
         return false;
 
     // TODO: More checks!
     return true;
+}
+
+bool CBotLocomotion::IsTraversable( const Vector & from, const Vector & to ) const
+{
+    CSimpleBotPathCost pathCost( GetBot() );
+
+    CNavPath testPath;
+    return testPath.Compute( from, to, pathCost );
 }
 
 bool CBotLocomotion::IsEntityTraversable( CBaseEntity * ent ) const

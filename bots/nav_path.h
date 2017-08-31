@@ -102,6 +102,11 @@ public:
         CNavArea *closestArea;
         bool pathResult = NavAreaBuildPath( startArea, goalArea, &goal, costFunc, &closestArea );
 
+        if ( !pathResult ) {
+            Invalidate();
+            return false;
+        }
+
         //
         // Build path by following parent links
         //
@@ -138,8 +143,6 @@ public:
             --count;
             m_path[ count ].area = area;
             m_path[ count ].how = area->GetParentHow();
-
-            //area->DrawFilled( 0, 0, 255, 150, 10.0f );
         }
 
         // compute path positions

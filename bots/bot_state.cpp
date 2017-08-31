@@ -30,12 +30,7 @@ void CBot::SetSkill( int level )
         level = TheGameRules->GetSkillLevel();
     }
 
-    if ( !GetSkill() ) {
-        m_Skill = new CBotSkill( level );
-        return;
-    }
-
-    GetSkill()->SetLevel( level );
+    GetProfile()->SetSkill( level );
 }
 
 //================================================================================
@@ -82,7 +77,7 @@ void CBot::Panic( float duration )
 {
     // Skill duration
     if ( duration < 0 ) {
-        duration = GetSkill()->GetPanicDuration();
+        duration = GetProfile()->GetReactionDelay();
     }
 
     SetState( STATE_PANIC, duration );
@@ -95,7 +90,7 @@ void CBot::Alert( float duration )
 {
     // Skill duration
     if ( duration < 0 ) {
-        duration = GetSkill()->GetAlertDuration();
+        duration = GetProfile()->GetAlertDuration();
     }
 
     SetState( STATE_ALERT, duration );

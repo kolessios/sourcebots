@@ -22,7 +22,7 @@
 
 #include "squad.h"
 
-class CBotSkill;
+class CBotProfile;
 class CEntityMemory;
 
 //================================================================================
@@ -33,18 +33,18 @@ class CBot : public IBot
 public:
     DECLARE_CLASS_GAMEROOT( CBot, IBot );
 
-    CBot( CBasePlayer *parent ) : BaseClass( parent )
-    {
-
-    }
+    CBot( CBasePlayer *parent );
 
 public:
     virtual void Spawn();
     virtual void Update();
-    virtual void PlayerMove( CBotCmd *cmd );
+    virtual void PlayerMove( CUserCmd *cmd );
 
-    virtual bool ShouldThink();
-    virtual void Think( CBotCmd* &cmd );
+    virtual bool CanRunAI();
+    virtual void Upkeep();
+    virtual void RunAI();
+
+    virtual void UpdateComponents( bool important = false );
 
     virtual void MimicThink( int );
     virtual void Kick();
@@ -169,6 +169,10 @@ protected:
     int m_iRepeatedDamageTimes;
     float m_flDamageAccumulated;
 
+    // Timer
+    CFastTimer m_RunTimer;
+    CFastTimer m_ScheduleTimer;
+
     friend class DirectorManager;
     friend class IBotSchedule;
 };
@@ -176,46 +180,65 @@ protected:
 //================================================================================
 // Author: Michael S. Booth (linkedin.com/in/michaelbooth), 2003
 //================================================================================
-class BotPathCost
+class CSimpleBotPathCost
 {
 public:
-    BotPathCost( CPlayer *pPlayer ) 
+    CSimpleBotPathCost( IBot *bot )
     {
-        m_nHost = pPlayer;
+        m_pBot = bot;
     }
 
     float operator() ( CNavArea *area, CNavArea *fromArea, const CNavLadder *ladder, const CFuncElevator *elevator, float length )
     {
         float baseDangerFactor = 100.0f;
-        float flDist;
+        float dangerFactor = (1.0f - (0.95f * m_pBot->GetProfile()->GetAggression())) * baseDangerFactor;
+        float dist;
 
-        if ( !fromArea )
+        if ( fromArea == NULL )
             return 0.0f;
 
-        // Do not go from one jump area to another
-        if ( (fromArea->GetAttributes() & NAV_MESH_JUMP) && (area->GetAttributes() & NAV_MESH_JUMP) )
-            return -1.0f;
-
-        if ( area->IsBlocked( TEAM_ANY ) || area->IsBlocked( m_nHost->GetTeamNumber() ) )
-            return -1.0f;
-
-        if ( !fromArea->IsConnected( area, NUM_DIRECTIONS ) )
+        if ( !m_pBot->GetLocomotion()->IsAreaTraversable( fromArea, area ) )
             return -1.0f;
 
         if ( ladder ) {
             // ladders are slow to use
             const float ladderPenalty = 2.0f;
-            flDist = ladderPenalty * ladder->m_length;
+            dist = ladderPenalty * ladder->m_length;
+        }
+        else if ( length > 0.0 ) {
+            // optimization to avoid recomputing length
+            dist = length;
         }
         else {
-            flDist = (area->GetCenter() - fromArea->GetCenter()).Length();
+            dist = (area->GetCenter() - fromArea->GetCenter()).Length();
         }
 
         // Cost by distance
-        float flCost = flDist + fromArea->GetCostSoFar();
+        float cost = dist + fromArea->GetCostSoFar();
+
+        // check height change
+        float deltaZ = fromArea->ComputeAdjacentConnectionHeightChange( area );
+
+        if ( deltaZ >= m_pBot->GetLocomotion()->GetStepHeight() ) {
+            if ( deltaZ >= m_pBot->GetLocomotion()->GetMaxJumpHeight() ) {
+                return -1.0f;
+            }
+
+            // jumping is slower than flat ground
+            const float jumpPenalty = 5.0f;
+            cost += jumpPenalty * dist;
+        }
+        else if ( deltaZ < -m_pBot->GetLocomotion()->GetDeathDropHeight() ) {
+            // too far to drop
+            return -1.0f;
+        }
+
+
+
+
 
         // We get the height difference
-        float ourZ = fromArea->GetCenter().z; //fromArea->GetZ( fromArea->GetCenter() );
+        /*float ourZ = fromArea->GetCenter().z; //fromArea->GetZ( fromArea->GetCenter() );
         float areaZ = area->GetCenter().z;//area->GetZ( area->GetCenter() );
 
         float fallDistance = ourZ - areaZ;
@@ -227,7 +250,7 @@ public:
         // We add cost if access to this area is necessary to jump from a great distance (and without water in the fall)
         if ( !area->IsUnderwater() && !area->IsConnected( fromArea, NUM_DIRECTIONS ) ) {
 #ifdef INSOURCE_DLL
-            float fallDamage = m_nHost->GetApproximateFallDamage( fallDistance );
+            float fallDamage = m_pBot->GetApproximateFallDamage( fallDistance );
 #else
             // empirically discovered height values
             const float slope = 0.2178f;
@@ -241,7 +264,7 @@ public:
                 // if the fall would kill us, don't use it
                 const float deathFallMargin = 10.0f;
 
-                if ( fallDamage + deathFallMargin >= m_nHost->GetHealth() )
+                if ( fallDamage + deathFallMargin >= m_pBot->GetHealth() )
                     return -1.0f;
 
                 // if we need to get there in a hurry, ignore minor pain
@@ -251,58 +274,71 @@ public:
                 if ( fallDamage > painTolerance ) {
                     // cost is proportional to how much it hurts when we fall
                     // 10 points - not a big deal, 50 points - ouch!
-                    flCost += 100.0f * fallDamage * fallDamage;
+                    cost += 100.0f * fallDamage * fallDamage;
                 }
             }
         }
+        */
 
         if ( area->IsUnderwater() ) {
-            if ( fallDistance < HalfHumanHeight )
-                return -1.0f;
-
             float penalty = 20.0f;
-            flCost += penalty * flDist;
+            cost += penalty * dist;
         }
 
         // Is above us
-        if ( !ladder && fallDistance < 0 ) {
+        /*if ( !ladder && fallDistance < 0 ) {
             // We can not reach with our highest jump
             if ( fallDistance < -(JumpCrouchHeight) )
                 return -1.0f;
 
             float penalty = 13.0f;
-            flCost += penalty * (fabs( fallDistance ) + flDist);
-        }
+            cost += penalty * (fabs( fallDistance ) + dist);
+        }*/
 
         if ( area->GetAttributes() & (NAV_MESH_CROUCH | NAV_MESH_WALK) ) {
             // these areas are very slow to move through
             //float penalty = (m_route == FASTEST_ROUTE) ? 20.0f : 5.0f;
             float penalty = 5.0f;
-            flCost += penalty * flDist;
+            cost += penalty * dist;
         }
 
         if ( area->GetAttributes() & NAV_MESH_JUMP ) {
             const float jumpPenalty = 5.0f;
-            flCost += jumpPenalty * flDist;
+            cost += jumpPenalty * dist;
         }
 
         if ( area->GetAttributes() & NAV_MESH_AVOID ) {
             const float avoidPenalty = 10.0f;
-            flCost += avoidPenalty * flDist;
+            cost += avoidPenalty * dist;
         }
 
         if ( area->HasAvoidanceObstacle() ) {
             const float blockedPenalty = 20.0f;
-            flCost += blockedPenalty * flDist;
+            cost += blockedPenalty * dist;
+        }
+
+        {
+            // add in cost of teammates in the way
+
+            // approximate density of teammates based on area
+            float size = (area->GetSizeX() + area->GetSizeY()) / 2.0f;
+
+            // degenerate check
+            if ( size >= 1.0f ) {
+                // cost is proportional to the density of teammates in this area
+                const float costPerFriendPerUnit = 50000.0f;
+                cost += costPerFriendPerUnit * (float)area->GetPlayerCount( m_pBot->GetHost()->GetTeamNumber() ) / size;
+            }
         }
 
         // add in the danger of this path - danger is per unit length travelled
-        flCost += flDist * baseDangerFactor * area->GetDanger( m_nHost->GetTeamNumber() );
-        return flCost;
+        cost += dist * baseDangerFactor * area->GetDanger( m_pBot->GetHost()->GetTeamNumber() );
+
+        return cost;
     }
 
 protected:
-    CPlayer *m_nHost;
+    IBot *m_pBot;
 };
 
 extern CPlayer *CreateBot( const char *pPlayername, const Vector *vecPosition, const QAngle *angles );

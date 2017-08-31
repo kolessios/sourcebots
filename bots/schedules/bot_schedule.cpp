@@ -28,8 +28,6 @@ void IBotSchedule::Reset()
     m_bFailed = false;
     m_bStarted = false;
     m_bFinished = false;
-    //m_vecSavedLocation.Invalidate();
-    //m_vecLocation.Invalidate();
 }
 
 //================================================================================
@@ -42,6 +40,7 @@ void IBotSchedule::Start()
 
     m_bStarted = true;
     m_StartTimer.Start();
+    m_FailTimer.Invalidate();
     m_Interrupts.Purge();
 
     if ( GetLocomotion() ) {
@@ -51,13 +50,14 @@ void IBotSchedule::Start()
     }
 
     Setup();
+
+    GetBot()->DebugAddMessage( "[%s] Started", g_BotSchedules[GetID()] );
 }
 
 //================================================================================
 //================================================================================
 void IBotSchedule::Finish()
 {
-    // Marcamos como terminado
     m_bFinished = true;
     m_bStarted = false;
 
@@ -66,17 +66,15 @@ void IBotSchedule::Finish()
     m_flLastDesire = BOT_DESIRE_NONE;
     m_StartTimer.Invalidate();
 
-    // Limpiamos todo
     m_Tasks.Purge();
-    //m_Interrupts.Purge();
-
-    GetBot()->DebugAddMessage( "Scheduled %s Finished", g_BotSchedules[GetID()] );
 
     if ( GetLocomotion() ) {
         GetLocomotion()->StopDrive();
         GetLocomotion()->Walk();
         GetLocomotion()->StandUp();
     }
+
+    GetBot()->DebugAddMessage( "[%s] Finished", g_BotSchedules[GetID()] );
 }
 
 //================================================================================
@@ -84,7 +82,8 @@ void IBotSchedule::Finish()
 void IBotSchedule::Fail( const char *pWhy )
 {
 	m_bFailed = true;
-    GetBot()->DebugAddMessage("Scheduled %s Failed: %s", g_BotSchedules[GetID()], pWhy);
+    m_FailTimer.Start();
+    GetBot()->DebugAddMessage("[%s:%s] Failed: %s", g_BotSchedules[GetID()], GetActiveTaskName(), pWhy);
 }
 
 //================================================================================
@@ -115,6 +114,9 @@ float IBotSchedule::GetInternalDesire()
             return m_flLastDesire;
     }
     else {
+        if ( m_FailTimer.HasStarted() && m_FailTimer.GetElapsedTime() < 1.0f )
+            return BOT_DESIRE_NONE;
+
         FOR_EACH_VEC( m_Interrupts, it )
         {
             BCOND condition = m_Interrupts.Element( it );
@@ -161,7 +163,7 @@ void IBotSchedule::Update()
 void IBotSchedule::Wait( float seconds )
 {
     m_WaitTimer.Start( seconds );
-    GetBot()->DebugAddMessage("Task Wait for %.2fs", seconds);
+    GetBot()->DebugAddMessage( "[%s:%s] %.2fs", g_BotSchedules[GetID()], GetActiveTaskName(), seconds );
 }
 
 //================================================================================
@@ -303,7 +305,7 @@ void IBotSchedule::TaskStart()
             Assert( GetMemory() );
 
             if ( !GetMemory() ) {
-                Fail( "Get Spawn: Without memory." );
+                Fail( "Without memory." );
                 return;
             }
 
@@ -326,7 +328,7 @@ void IBotSchedule::TaskStart()
             }
 
             if ( pArea == NULL ) {
-                Fail( "Get Spot Aside: Bot without last known Area." );
+                Fail( "Bot without last known Area." );
             }
 
             SavePosition( pArea->GetRandomPoint(), 5.0f );
@@ -351,7 +353,7 @@ void IBotSchedule::TaskStart()
             }
 
             if ( !GetDecision()->GetNearestCover( radius, &vecPosition ) ) {
-                Fail( "Get Cover: No cover spot found" );
+                Fail( "No cover spot found" );
                 return;
             }
 
@@ -382,7 +384,7 @@ void IBotSchedule::TaskStart()
             criteria.AvoidTeam( GetBot()->GetEnemy() );
 
             if ( !Utils::FindCoverPosition( &vecPosition, GetHost(), criteria ) ) {
-                Fail( "Get Cover: No far cover spot found" );
+                Fail( "No far cover spot found" );
                 return;
             }
 
@@ -416,7 +418,7 @@ void IBotSchedule::TaskStart()
         case BTASK_CROUCH:
         {
             if ( !GetLocomotion() ) {
-                Fail( "Crouch: Without Locomotion" );
+                Fail( "Without Locomotion" );
                 return;
             }
 
@@ -428,7 +430,7 @@ void IBotSchedule::TaskStart()
         case BTASK_STANDUP:
         {
             if ( !GetLocomotion() ) {
-                Fail( "Standup: Without Locomotion" );
+                Fail( "Without Locomotion" );
                 return;
             }
 
@@ -440,7 +442,7 @@ void IBotSchedule::TaskStart()
         case BTASK_RUN:
         {
             if ( !GetLocomotion() ) {
-                Fail( "Run: Without Locomotion" );
+                Fail( "Without Locomotion" );
                 return;
             }
 
@@ -452,7 +454,7 @@ void IBotSchedule::TaskStart()
         case BTASK_SNEAK:
         {
             if ( !GetLocomotion() ) {
-                Fail( "Sneak: Without Locomotion" );
+                Fail( "Without Locomotion" );
                 return;
             }
 
@@ -464,7 +466,7 @@ void IBotSchedule::TaskStart()
         case BTASK_WALK:
         {
             if ( !GetLocomotion() ) {
-                Fail( "Walk: Without Locomotion" );
+                Fail( "Without Locomotion" );
                 return;
             }
 
@@ -476,6 +478,11 @@ void IBotSchedule::TaskStart()
         case BTASK_RELOAD:
         {
             InjectButton( IN_RELOAD );
+
+            // Async
+            if ( pTask->iValue == 1 ) {
+                TaskComplete();
+            }
             break;
         }
 
@@ -493,18 +500,16 @@ void IBotSchedule::TaskStart()
 
             if ( reload ) {
                 InjectButton( IN_RELOAD );
+
+                // Async
+                if ( pTask->iValue == 1 ) {
+                    TaskComplete();
+                }
             }
             else {
                 TaskComplete();
             }
 
-            break;
-        }
-
-        case BTASK_RELOAD_ASYNC:
-        {
-            InjectButton( IN_RELOAD );
-            TaskComplete();
             break;
         }
 
@@ -538,7 +543,6 @@ void IBotSchedule::TaskRun()
         case BTASK_GET_COVER:
         case BTASK_GET_FAR_COVER:
         case BTASK_GET_SPAWN:
-        case BTASK_RELOAD_ASYNC:
         case BTASK_CALL_FOR_BACKUP:
         {
             break;
@@ -598,7 +602,7 @@ void IBotSchedule::TaskRun()
 
         case BTASK_MOVE_DESTINATION:
         {
-            Vector vecPosition = GetSavedPosition();
+            Vector vecGoal = GetSavedPosition();
             CBaseEntity *pTarget = pTask->pszValue.Get();
 
             if ( pTarget ) {
@@ -606,28 +610,33 @@ void IBotSchedule::TaskRun()
                     CEntityMemory *memory = GetMemory()->GetEntityMemory( pTarget );
 
                     if ( memory ) {
-                        vecPosition = memory->GetLastKnownPosition();
+                        vecGoal = memory->GetLastKnownPosition();
                     }
                     else {
-                        vecPosition = pTarget->GetAbsOrigin();
+                        vecGoal = pTarget->GetAbsOrigin();
                     }
                 }
                 else {
-                    vecPosition = pTarget->GetAbsOrigin();
+                    vecGoal = pTarget->GetAbsOrigin();
                 }
             }
             else if ( pTask->vecValue.IsValid() ) {
-                vecPosition = pTask->vecValue;
+                vecGoal = pTask->vecValue;
             }
 
-            Assert( vecPosition.IsValid() );
+            Assert( vecGoal.IsValid() );
 
-            if ( !vecPosition.IsValid() ) {
-                Fail( "Move Destination: Invalid!" );
+            if ( !vecGoal.IsValid() ) {
+                Fail( "Invalid goal" );
                 return;
             }
 
-            float distance = GetAbsOrigin().DistTo( vecPosition );
+            if ( !GetLocomotion()->IsTraversable( GetAbsOrigin(), vecGoal ) ) {
+                Fail( "Invalid path to goal" );
+                return;
+            }
+
+            float distance = GetAbsOrigin().DistTo( vecGoal );
             float tolerance = GetLocomotion()->GetTolerance();
 
             if ( distance <= tolerance ) {
@@ -635,7 +644,7 @@ void IBotSchedule::TaskRun()
                 return;
             }
 
-            GetLocomotion()->DriveTo( "Moving Destination", vecPosition, PRIORITY_HIGH );
+            GetLocomotion()->DriveTo( "Moving Destination", vecGoal, PRIORITY_HIGH );
             break;
         }
 
@@ -697,10 +706,10 @@ void IBotSchedule::TaskRun()
             }
 
             if ( GetBot()->GetTacticalMode() == TACTICAL_MODE_DEFENSIVE && memory->GetInformer() ) {
-                GetLocomotion()->DriveTo( "Hunt Threat - Informer", memory->GetInformer(), tolerance, PRIORITY_HIGH );
+                GetLocomotion()->DriveTo( "Hunt Threat - Informer", memory->GetInformer(), PRIORITY_HIGH, tolerance );
             }
             else {
-                GetLocomotion()->DriveTo( "Hunt Threat", memory->GetEntity(), tolerance, PRIORITY_HIGH );
+                GetLocomotion()->DriveTo( "Hunt Threat", memory->GetEntity(), PRIORITY_HIGH, tolerance );
             }
 
             break;
@@ -726,6 +735,10 @@ void IBotSchedule::TaskRun()
             }
 
             if ( GetVision()->IsAimReady() ) {
+                if ( GetMemory() ) {
+                    GetMemory()->UpdateDataMemory( "BlockLookAround", 1, 5.0f );
+                }
+
                 TaskComplete();
             }
 

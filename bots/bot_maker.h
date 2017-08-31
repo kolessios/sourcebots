@@ -33,14 +33,14 @@ public:
     DECLARE_DATADESC();
 
     virtual int  ObjectCaps() { return BaseClass::ObjectCaps() & ~FCAP_ACROSS_TRANSITION; }
-    virtual CPlayer *GetBot() { return m_nBot.Get(); }
+    virtual CPlayer *GetPlayer() { return m_pPlayer.Get(); }
 
     virtual void Spawn();
     virtual void DeathNotice( CBaseEntity *pVictim );
 
     virtual bool CanMake( bool bRespawn = false );
     virtual void SpawnBot();
-    virtual void PreparePlayer();
+    virtual void SetUpBot();
 
     // Inputs
     void InputSpawn( inputdata_t &inputdata );
@@ -79,7 +79,7 @@ protected:
     bool m_bDisabledMovement;
     bool m_bDisabled;
 
-	CHandle<CPlayer> m_nBot;
+	CHandle<CPlayer> m_pPlayer;
 
     // Outputs
     COutputEHANDLE m_OnSpawn;

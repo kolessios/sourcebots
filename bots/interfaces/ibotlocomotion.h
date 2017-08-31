@@ -57,7 +57,8 @@ public:
     virtual bool IsOnTolerance() const = 0;
 
     virtual bool IsAreaTraversable( const CNavArea *area ) const = 0;
-    virtual bool IsPotentiallyTraversable( const Vector& from, const Vector& to ) const = 0;
+    virtual bool IsAreaTraversable( const CNavArea *from, const CNavArea *to ) const = 0;
+    virtual bool IsTraversable( const Vector &from, const Vector &to ) const = 0;
     virtual bool IsEntityTraversable( CBaseEntity *ent ) const = 0;
 
     virtual void OnLeaveGround( CBaseEntity *pGround ) = 0;
@@ -89,6 +90,10 @@ public:
         m_NavPathFollower->SetPath( m_NavPath );
         m_NavPathFollower->SetImprov( this );
         m_NavPathFollower->SetFollowPathExactly( false );
+    }
+
+    virtual bool ItsImportant() const {
+        return true;
     }
 
     virtual bool HasDestination() const {

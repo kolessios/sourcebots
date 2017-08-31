@@ -133,9 +133,7 @@ protected:
 
     CountdownTimer m_WaitTimer;
     IntervalTimer m_StartTimer;
-
-    //Vector m_vecSavedLocation;
-    //Vector m_vecLocation;
+    IntervalTimer m_FailTimer;
 };
 
 #endif // IBOT_SCHEDULE_H

@@ -114,7 +114,8 @@ public:
     virtual bool IsOnTolerance() const;
 
     virtual bool IsAreaTraversable( const CNavArea *area ) const;
-    virtual bool IsPotentiallyTraversable( const Vector& from, const Vector& to ) const;
+    virtual bool IsAreaTraversable( const CNavArea *from, const CNavArea *to ) const;
+    virtual bool IsTraversable( const Vector &from, const Vector &to ) const;
     virtual bool IsEntityTraversable( CBaseEntity *ent ) const;
 
     virtual void OnLeaveGround( CBaseEntity *pGround ) { }
@@ -338,7 +339,10 @@ public:
     virtual bool CanCrouchAttack() const;
     virtual bool ShouldCrouchAttack() const;
 
-    virtual bool IsEnemyLowPriority() const;
+    virtual bool IsEnemy( CBaseEntity *pEntity ) const;
+    virtual bool IsFriend( CBaseEntity *pEntity ) const;
+    virtual bool IsSelf( CBaseEntity *pEntity ) const;
+
     virtual bool IsBetterEnemy( CBaseEntity *pEnemy, CBaseEntity *pPrevious ) const;
 
     virtual bool CanBeEnemy( CBaseEntity *pEnemy ) const {
@@ -368,8 +372,8 @@ public:
     virtual bool IsInFieldOfView( CBaseEntity *entity ) const;
     virtual bool IsInFieldOfView( const Vector &pos ) const;
 
-    virtual bool IsLineOfSightClear( CBaseEntity *entity, CBaseEntity *hit = NULL ) const;
-    virtual bool IsLineOfSightClear( const Vector &pos, CBaseEntity *entityToIgnore = NULL, CBaseEntity *hit = NULL ) const;
+    virtual bool IsLineOfSightClear( CBaseEntity *entity, CBaseEntity **hit = NULL ) const;
+    virtual bool IsLineOfSightClear( const Vector &pos, CBaseEntity *entityToIgnore = NULL, CBaseEntity **hit = NULL ) const;
 
 public:
     CountdownTimer m_RandomAimTimer;

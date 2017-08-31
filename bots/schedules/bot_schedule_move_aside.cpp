@@ -30,7 +30,7 @@ END_SCHEDULE()
 //================================================================================
 float CurrentSchedule::GetDesire() const
 {
-    if ( GetSkill()->GetLevel() <= SKILL_MEDIUM )
+    if ( GetProfile()->GetSkill() <= SKILL_MEDIUM )
         return BOT_DESIRE_NONE;
 
     if ( !GetDecision()->CanMove() )

@@ -42,7 +42,7 @@ float CCoverSchedule::GetDesire() const
         return BOT_DESIRE_NONE;
 
     if ( GetBot()->IsCombating() || GetBot()->IsAlerted() ) {
-        if ( GetSkill()->GetLevel() >= SKILL_HARD && GetDecision()->IsDangerousEnemy() ) {
+        if ( GetProfile()->GetSkill() >= SKILL_HARD && GetDecision()->IsDangerousEnemy() ) {
             if ( HasCondition( BCOND_LIGHT_DAMAGE ) )
                 return 0.82f;
         }

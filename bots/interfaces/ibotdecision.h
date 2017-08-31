@@ -77,6 +77,10 @@ public:
     virtual bool CanCrouchAttack() const = 0;
     virtual bool ShouldCrouchAttack() const = 0;
 
+    virtual bool IsEnemy( CBaseEntity *pEntity ) const = 0;
+    virtual bool IsFriend( CBaseEntity *pEntity ) const = 0;
+    virtual bool IsSelf( CBaseEntity *pEntity ) const = 0;
+
     virtual bool IsBetterEnemy( CBaseEntity *pEnemy, CBaseEntity *pPrevious ) const = 0;
     virtual bool CanBeEnemy( CBaseEntity *pEnemy ) const = 0;
     virtual bool IsDangerousEnemy( CBaseEntity *pEnemy = NULL ) const = 0;
@@ -102,8 +106,8 @@ public:
     virtual bool IsInFieldOfView( CBaseEntity *entity ) const = 0;
     virtual bool IsInFieldOfView( const Vector &pos ) const = 0;
 
-    virtual bool IsLineOfSightClear( CBaseEntity *entity, CBaseEntity *hit = NULL ) const = 0;
-    virtual bool IsLineOfSightClear( const Vector &pos, CBaseEntity *entityToIgnore = NULL, CBaseEntity *hit = NULL ) const = 0;
+    virtual bool IsLineOfSightClear( CBaseEntity *entity, CBaseEntity **hit = NULL ) const = 0;
+    virtual bool IsLineOfSightClear( const Vector &pos, CBaseEntity *entityToIgnore = NULL, CBaseEntity **hit = NULL ) const = 0;
 };
 
 #endif // IBOT_DECISION_H

@@ -87,7 +87,7 @@ bool CBotDecision::ShouldLookThreat() const
     }
 
     // We have lost sight of our enemy for a while, let us look elsewhere
-    if ( !GetSkill()->IsEasiest() ) {
+    if ( !GetProfile()->IsEasiest() ) {
         if ( HasCondition( BCOND_ENEMY_LOST ) && HasCondition( BCOND_ENEMY_TOO_FAR ) ) {
             return false;
         }
@@ -373,7 +373,7 @@ bool CBotDecision::CanHuntThreat() const
     if ( GetBot()->GetSquad() && GetBot()->GetSquad()->GetStrategie() == COWARDS )
         return false;
 
-    if ( !GetSkill()->IsEasiest() ) {
+    if ( !GetProfile()->IsEasiest() ) {
         if ( HasCondition( BCOND_LOW_HEALTH ) )
             return false;
 
@@ -535,7 +535,7 @@ bool CBotDecision::ShouldSwitchToWeapon( CBaseWeapon *pWeapon ) const
 //================================================================================
 bool CBotDecision::ShouldHelpFriends() const
 {
-    if ( GetSkill()->IsEasiest() )
+    if ( GetProfile()->IsEasiest() )
         return false;
 
     if ( !CanMove() )
@@ -597,7 +597,7 @@ bool CBotDecision::IsLowHealth() const
 {
     int lowHealth = 30;
 
-    if ( GetSkill()->GetLevel() >= SKILL_HARD ) {
+    if ( GetProfile()->GetSkill() >= SKILL_HARD ) {
         lowHealth += 10;
     }
 
@@ -665,7 +665,7 @@ bool CBotDecision::CanAttack() const
 //================================================================================
 bool CBotDecision::CanCrouchAttack() const
 {
-    if ( GetSkill()->IsEasiest() )
+    if ( GetProfile()->IsEasiest() )
         return false;
 
     if ( !GetLocomotion() )
@@ -716,40 +716,25 @@ bool CBotDecision::ShouldCrouchAttack() const
 
 //================================================================================
 //================================================================================
-bool CBotDecision::IsEnemyLowPriority() const
+bool CBotDecision::IsEnemy( CBaseEntity * pEntity ) const
 {
-    /*
-    CEntityMemory *memory = GetBot()->GetPrimaryThreat();
-    CEntityMemory *pIdeal = GetMemory()->GetIdealThreat();
+    int relationship = TheGameRules->PlayerRelationship( GetHost(), pEntity );
+    return (relationship == GR_ENEMY || relationship == GR_NOTTEAMMATE);
+}
 
-    if ( memory == NULL )
-        return true;
+//================================================================================
+//================================================================================
+bool CBotDecision::IsFriend( CBaseEntity * pEntity ) const
+{
+    int relationship = TheGameRules->PlayerRelationship( GetHost(), pEntity );
+    return (relationship == GR_ALLY || relationship == GR_TEAMMATE);
+}
 
-    if ( HasCondition( BCOND_ENEMY_DEAD ) )
-        return true;
-
-#ifdef INSOURCE_DLL
-    if ( pEnemy->IsPlayer() ) {
-        CPlayer *pPlayer = ToInPlayer( pEnemy );
-        Assert( pPlayer );
-
-        if ( pPlayer->IsDejected() )
-            return true;
-    }
-#endif
-
-    if ( pIdeal ) {
-        if ( pIdeal->GetDistance() <= 300.0f )
-            return true;
-
-        if ( pEnemy->IsPlayer() && !pIdeal->GetEntity()->IsPlayer() )
-            return false;
-    }
-
-    if ( IsPrimaryThreatLost() )
-        return true;*/
-
-    return false;
+//================================================================================
+//================================================================================
+bool CBotDecision::IsSelf( CBaseEntity * pEntity ) const
+{
+    return (GetHost() == pEntity);
 }
 
 //================================================================================
@@ -762,7 +747,7 @@ bool CBotDecision::IsBetterEnemy( CBaseEntity * pIdeal, CBaseEntity * pPrevious 
     if ( pPrevious == NULL )
         return true;
 
-    if ( !GetSkill()->IsEasiest() ) {
+    if ( !GetProfile()->IsEasiest() ) {
         if ( GetDecision()->IsAbleToSee( pIdeal ) && !GetDecision()->IsAbleToSee( pPrevious ) )
             return true;
     }
@@ -872,7 +857,7 @@ bool CBotDecision::IsPrimaryThreatLost() const
 //================================================================================
 bool CBotDecision::ShouldMustBeCareful() const
 {
-    if ( GetSkill()->IsEasiest() )
+    if ( GetProfile()->IsEasiest() )
         return false;
 
     if ( GetDataMemoryInt("NearbyDangerousThreats") >= 2 )
@@ -1095,7 +1080,7 @@ BCOND CBotDecision::ShouldRangeAttack1()
     if ( !pWeapon || pWeapon->IsMeleeWeapon() )
     return BCOND_NONE;
 
-    if ( GetSkill()->GetLevel() <= SKILL_MEDIUM )
+    if ( GetSkill()->GetSkill() <= SKILL_MEDIUM )
     return BCOND_NONE;
 
     if ( GetBot()->GetActiveSchedule() != NULL )
@@ -1128,9 +1113,8 @@ BCOND CBotDecision::ShouldRangeAttack1()
 
     // A better way to do this and move it to a better place.
     float fireRate = pWeapon->GetFireRate();
-    float minRate = fireRate + GetSkill()->GetMinAttackRate();
-    float maxRate = fireRate + GetSkill()->GetMaxAttackRate();
-    m_ShotRateTimer.Start( RandomFloat( minRate, maxRate ) );
+    float delay = fireRate + GetProfile()->GetAttackDelay();
+    m_ShotRateTimer.Start( delay );
 
     return BCOND_CAN_RANGE_ATTACK1;
 }
@@ -1154,7 +1138,7 @@ BCOND CBotDecision::ShouldRangeAttack2()
 
     // Snipa!
     if ( pWeapon->IsSniper() ) {
-        if ( !GetSkill()->IsEasiest() ) {
+        if ( !GetProfile()->IsEasiest() ) {
             // Zoom!
             if ( IsCombating() && !pWeapon->IsWeaponZoomed() ) {
                 return BCOND_CAN_RANGE_ATTACK2;
@@ -1247,7 +1231,7 @@ bool CBotDecision::IsInFieldOfView( const Vector & pos ) const
 
 //================================================================================
 //================================================================================
-bool CBotDecision::IsLineOfSightClear( CBaseEntity *entity, CBaseEntity *hit ) const
+bool CBotDecision::IsLineOfSightClear( CBaseEntity *entity, CBaseEntity **hit ) const
 {
     if ( GetMemory() ) {
         CEntityMemory *memory = GetMemory()->GetEntityMemory( entity );
@@ -1262,7 +1246,7 @@ bool CBotDecision::IsLineOfSightClear( CBaseEntity *entity, CBaseEntity *hit ) c
 
 //================================================================================
 //================================================================================
-bool CBotDecision::IsLineOfSightClear( const Vector & pos, CBaseEntity * entityToIgnore, CBaseEntity *hit ) const
+bool CBotDecision::IsLineOfSightClear( const Vector & pos, CBaseEntity * entityToIgnore, CBaseEntity **hit ) const
 {
     if ( !IsAbleToSee( pos ) )
         return false;
@@ -1275,6 +1259,6 @@ bool CBotDecision::IsLineOfSightClear( const Vector & pos, CBaseEntity * entityT
     trace_t tr;
     UTIL_TraceLine( GetHost()->EyePosition(), pos, MASK_SHOT, &traceFilter, &tr );
 
-    hit = tr.m_pEnt;
+    *hit = tr.m_pEnt;
     return (tr.fraction == 1.0f);
 }

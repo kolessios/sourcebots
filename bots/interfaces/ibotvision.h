@@ -48,6 +48,10 @@ public:
         m_VisionTimer.Invalidate();
     }
 
+    virtual bool ItsImportant() const {
+        return true;
+    }
+
     virtual CountdownTimer GetTimer() {
         return m_VisionTimer;
     }

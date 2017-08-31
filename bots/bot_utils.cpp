@@ -95,9 +95,16 @@ float CEntityMemory::GetDistanceSquare() const
 
 //================================================================================
 //================================================================================
-int CEntityMemory::GetRelationship() const
+bool CEntityMemory::IsEnemy() const
 {
-    return TheGameRules->PlayerRelationship( m_pBot->GetHost(), GetEntity() );
+    return m_pBot->GetDecision()->IsEnemy( GetEntity() );
+}
+
+//================================================================================
+//================================================================================
+bool CEntityMemory::IsFriend() const
+{
+    return m_pBot->GetDecision()->IsFriend( GetEntity() );
 }
 
 //================================================================================
@@ -197,5 +204,5 @@ void CEntityMemory::UpdateHitboxAndVisibility()
     }
 
     // We update the ideal position
-    GetVisibleHitboxPosition( m_vecIdealPosition, m_pBot->GetSkill()->GetFavoriteHitbox() );
+    GetVisibleHitboxPosition( m_vecIdealPosition, m_pBot->GetProfile()->GetFavoriteHitbox() );
 }

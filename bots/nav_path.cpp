@@ -356,8 +356,10 @@ void CNavPath::Draw( const Vector &color )
 
     for( int i=1; i<m_segmentCount; ++i )
     {
-        DrawLine( m_path[i-1].pos + Vector( 0, 0, HalfHumanHeight ), 
-                  m_path[i].pos + Vector( 0, 0, HalfHumanHeight ), 2, 255 * color.x, 255 * color.y, 255 * color.z );
+        m_path[i].area->DrawFilled( 0, 0, 255, 150, 0.1f );
+
+        DrawLine( m_path[i-1].pos + Vector( 0, 0, StepHeight ),
+                  m_path[i].pos + Vector( 0, 0, StepHeight ), 2, 255 * color.x, 255 * color.y, 255 * color.z );
     }
 }
 

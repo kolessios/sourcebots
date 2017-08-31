@@ -23,6 +23,8 @@ class IBotDecision;
 //================================================================================
 
 #define FOR_EACH_COMPONENT FOR_EACH_MAP( m_nComponents, it )
+#define FOR_EACH_IMPORTANT_COMPONENT FOR_EACH_MAP( m_nComponents, it ) if ( !m_nComponents[it]->ItsImportant() ) continue; else
+
 #define DECLARE_COMPONENT( id ) virtual int GetID() const { return id; }
 
 //================================================================================
@@ -42,6 +44,11 @@ public:
         return false;
     }
 
+    // Indicates whether the component is important and should be updated with each tick.
+    virtual bool ItsImportant() const {
+        return false;
+    }
+
     virtual IBot *GetBot() const {
         return m_nBot;
     }
@@ -52,10 +59,11 @@ public:
 
     virtual void Reset() {
         m_flTickInterval = gpGlobals->interval_per_tick;
+        m_flUpdateCost = 0.0f;
     }
 
-    virtual CBotSkill *GetSkill() const {
-        return m_nBot->GetSkill();
+    virtual CBotProfile *GetProfile() const {
+        return m_nBot->GetProfile();
     }
 
     virtual void SetCondition( BCOND condition ) {
@@ -90,6 +98,14 @@ public:
         return m_nBot->IsPanicked();
     }
 
+    virtual float GetUpdateCost() const {
+        return m_flUpdateCost;
+    }
+
+    virtual void SetUpdateCost( float time ) {
+        m_flUpdateCost = time;
+    }
+
     virtual IBotVision *GetVision() const {
         return m_nBot->GetVision();
     }
@@ -120,6 +136,7 @@ public:
 
 public:
     float m_flTickInterval;
+    float m_flUpdateCost;
 
 protected:
     IBot *m_nBot;

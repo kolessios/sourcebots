@@ -37,11 +37,11 @@ void CBot::OnLooked( int iDistance )
     AISightIter_t iter;
     CBaseEntity *pSightEnt = GetSenses()->GetFirstSeenEntity( &iter );
 
-	if ( !pSightEnt )
-		return;
+    if ( !pSightEnt )
+        return;
 
     // TODO: This "optimization" works?
-	int limit = 25;
+    int limit = 25;
 
     if ( ShouldOptimize() ) {
         limit = 5;
@@ -72,56 +72,40 @@ void CBot::OnLooked( CBaseEntity *pSightEnt )
     if ( !memory )
         return;
 
-    int relation = memory->GetRelationship();
     memory->UpdateVisibility( true );
 
-    switch ( relation ) {
-        case GR_ENEMY:
-        case GR_NOTTEAMMATE:
-        {
-            int priority = GetHost()->IRelationPriority( pSightEnt );
+    if ( memory->IsEnemy() ) {
+        int priority = GetHost()->IRelationPriority( pSightEnt );
 
-            if ( priority < 0 ) {
-                SetCondition( BCOND_SEE_DISLIKE );
-            }
-            else {
-                SetCondition( BCOND_SEE_HATE );
-            }
-
-            break;
+        if ( priority < 0 ) {
+            SetCondition( BCOND_SEE_DISLIKE );
         }
-
-        case GR_NEUTRAL:
-        {
-            // A weapon, maybe we can use it...
-            if ( pSightEnt->IsBaseCombatWeapon() ) {
-                CBaseWeapon *pWeapon = ToBaseWeapon( pSightEnt );
-                Assert( pWeapon );
-
-                if ( GetDecision()->ShouldGrabWeapon( pWeapon ) ) {
-                    GetMemory()->UpdateDataMemory( "BestWeapon", pSightEnt, 30.0f );
-                    SetCondition( BCOND_BETTER_WEAPON_AVAILABLE );
-                }
-            }
-
-            break;
+        else {
+            SetCondition( BCOND_SEE_HATE );
         }
+    }
+    else if ( memory->IsFriend() ) {
+        SetCondition( BCOND_SEE_FRIEND );
 
-        case GR_ALLY:
-        case GR_TEAMMATE:
-        {
-            SetCondition( BCOND_SEE_FRIEND );
+        if ( pSightEnt->IsPlayer() ) {
+            CPlayer *pSightPlayer = ToInPlayer( pSightEnt );
 
-            if ( pSightEnt->IsPlayer() ) {
-                CPlayer *pSightPlayer = ToInPlayer( pSightEnt );
-
-                if ( GetDecision()->ShouldHelpDejectedFriend( pSightPlayer ) ) {
-                    GetMemory()->UpdateDataMemory( "DejectedFriend", pSightEnt, 30.0f );
-                    SetCondition( BCOND_SEE_DEJECTED_FRIEND );
-                }
+            if ( GetDecision()->ShouldHelpDejectedFriend( pSightPlayer ) ) {
+                GetMemory()->UpdateDataMemory( "DejectedFriend", pSightEnt, 30.0f );
+                SetCondition( BCOND_SEE_DEJECTED_FRIEND );
             }
+        }
+    }
+    else {
+        // A weapon, maybe we can use it...
+        if ( pSightEnt->IsBaseCombatWeapon() ) {
+            CBaseWeapon *pWeapon = ToBaseWeapon( pSightEnt );
+            Assert( pWeapon );
 
-            break;
+            if ( GetDecision()->ShouldGrabWeapon( pWeapon ) ) {
+                GetMemory()->UpdateDataMemory( "BestWeapon", pSightEnt, 30.0f );
+                SetCondition( BCOND_BETTER_WEAPON_AVAILABLE );
+            }
         }
     }
 }
@@ -221,23 +205,22 @@ void CBot::OnTakeDamage( const CTakeDamageInfo &info )
         if ( pAttacker == GetEnemy() )
             return;
 
-        int relationship = TheGameRules->PlayerRelationship( GetHost(), pAttacker );
-
-        if ( relationship == GR_ENEMY || relationship == GR_NOTTEAMMATE ) {
+        if ( GetDecision()->IsEnemy( pAttacker ) ) {
             float distance = GetAbsOrigin().DistTo( pAttacker->GetAbsOrigin() );
-            Vector vecEstimatedPosition = pAttacker->WorldSpaceCenter();
+            bool visible = GetDecision()->IsAbleToSee( pAttacker );
+            Vector vecPosition = pAttacker->WorldSpaceCenter();
 
-            // It is very far! We can not know the exact position
-            if ( distance >= farDistance ) {
+            // We have no vision of the attacker! We can not know the exact position
+            if ( !visible ) {
                 float errorRange = 200.0f;
 
-                // I'm noob, miscalculated
-                if ( GetSkill()->GetLevel() <= SKILL_MEDIUM ) {
+                // It is very far!
+                if ( distance >= farDistance ) {
                     errorRange = 500.0f;
                 }
 
-                vecEstimatedPosition.x += RandomFloat( -errorRange, errorRange );
-                vecEstimatedPosition.y += RandomFloat( -errorRange, errorRange );
+                vecPosition.x += RandomFloat( -errorRange, errorRange );
+                vecPosition.y += RandomFloat( -errorRange, errorRange );
             }
 
             // We were calm, without hurting anyone...
@@ -246,36 +229,14 @@ void CBot::OnTakeDamage( const CTakeDamageInfo &info )
                 if ( !GetDecision()->IsAbleToSee( pAttacker ) ) {
                     Panic();
                 }
-
-                // We try to look at where we've been hurt
-                //GetVision()->LookAt( "Unknown Threat Spot", vecEstimatedPosition, PRIORITY_HIGH, GetSkill()->GetAlertDuration() );
             }
-            /*else {
-                bool setAsEnemy = true;
 
-                // If it is very far (Like a hidden sniper) 
-                // then we only update its approximate position
-                if ( distance >= farDistance ) {
-                    setAsEnemy = false;
-                }
+            GetMemory()->UpdateEntityMemory( pAttacker, vecPosition );
 
-                // Our new enemy
-                // TODO: 
-                if ( setAsEnemy ) {
-                    // Noob: ¡Otro enemigo! ¡Panico total!
-                    if ( GetSkill()->IsEasy() ) {
-                        Panic( RandomFloat( 0.2f, 0.6f ) );
-                    }
-
-                    SetEnemy( pAttacker, true );
-                }
-                else {
-                    GetMemory()->UpdateEntityMemory( pAttacker, vecEstimatedPosition );
-                }
-            }*/
-
-            // We try to look at where we've been hurt
-            GetVision()->LookAt( "Unknown Threat Spot", vecEstimatedPosition, PRIORITY_HIGH, GetSkill()->GetAlertDuration() );
+            if ( !visible ) {
+                // We try to look at where we've been hurt
+                GetVision()->LookAt( "Unknown Threat Spot", vecPosition, PRIORITY_VERY_HIGH, 0.2f );
+            }
         }
     }
 

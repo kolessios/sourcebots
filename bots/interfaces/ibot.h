@@ -55,13 +55,12 @@ public:
         SetDefLessFunc( m_nComponents );
         SetDefLessFunc( m_nSchedules );
 
-        m_Skill = NULL;
+        m_pProfile = new CBotProfile();
         m_iPerformance = BOT_PERFORMANCE_AWAKE;
         m_pParent = parent;
     }
 
     virtual CPlayer *GetHost() const {
-        //return dynamic_cast<CPlayer *>( m_pParent );
         return (CPlayer *)m_pParent;
     }
 
@@ -73,12 +72,12 @@ public:
         m_iPerformance = value;
     }
 
-    virtual CBotCmd *GetUserCommand() {
+    virtual CUserCmd *GetUserCommand() {
         return m_cmd;
     }
 
-    virtual CBotCmd *GetLastCmd() {
-        return m_nLastCmd;
+    virtual CUserCmd *GetLastCmd() {
+        return m_lastCmd;
     }
 
     virtual void SetTacticalMode( int attitude ) {
@@ -89,8 +88,8 @@ public:
         return m_iTacticalMode;
     }
 
-    virtual CBotSkill *GetSkill() const {
-        return m_Skill;
+    virtual CBotProfile *GetProfile() const {
+        return m_pProfile;
     }
 
     virtual float GetStateDuration() {
@@ -123,10 +122,13 @@ public:
 
     virtual void Spawn() = 0;
     virtual void Update() = 0;
-    virtual void PlayerMove( CBotCmd *cmd ) = 0;
+    virtual void PlayerMove( CUserCmd *cmd ) = 0;
 
-    virtual bool ShouldThink() = 0;
-    virtual void Think( CBotCmd* &cmd ) = 0;
+    virtual bool CanRunAI() = 0;
+    virtual void Upkeep() = 0;
+    virtual void RunAI() = 0;
+
+    virtual void UpdateComponents( bool important = false ) = 0;
 
     virtual void MimicThink( int ) = 0;
     virtual void Kick() = 0;
@@ -221,7 +223,7 @@ public:
 
 protected:
     BotState m_iState;
-    CBotSkill *m_Skill;
+    CBotProfile *m_pProfile;
     int m_iTacticalMode;
     BotPerformance m_iPerformance;
     CountdownTimer m_iStateTimer;
@@ -234,8 +236,8 @@ protected:
     CUtlMap<int, IBotSchedule *> m_nSchedules;
 
     // Cmd
-    CBotCmd *m_nLastCmd;
-    CBotCmd *m_cmd;
+    CUserCmd *m_lastCmd;
+    CUserCmd *m_cmd;
 
     // Conditions
     CFlagsBits m_nConditions;
