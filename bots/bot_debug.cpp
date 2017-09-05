@@ -232,8 +232,14 @@ void CBot::DebugDisplay()
         if ( GetVision()->HasAimGoal() ) {
             int priority = GetVision()->GetPriority();
 
-            DebugScreenText( msg.sprintf( "    Looking At: %s", GetVision()->GetDescription() ), yellow );
-            DebugScreenText( msg.sprintf( "    Time Left: %.2fs", GetVision()->GetTimer().GetRemainingTime()), yellow );
+            if ( GetVision()->IsAimReady() ) {
+                DebugScreenText( msg.sprintf( "    Looking At: %s (READY)", GetVision()->GetDescription() ), yellow );
+                DebugScreenText( msg.sprintf( "    Time Left: %.2fs", GetVision()->GetTimer().GetRemainingTime() ), yellow );
+            }
+            else {
+                DebugScreenText( msg.sprintf( "    Looking At: %s (AIMING)", GetVision()->GetDescription() ), yellow );
+            }
+            
             DebugScreenText( msg.sprintf( "    Priority: %s", g_PriorityNames[priority] ), yellow );
 
             if ( GetVision()->GetAimTarget() ) {
@@ -256,11 +262,11 @@ void CBot::DebugDisplay()
             Vector vecDestination = GetLocomotion()->GetDestination();
             int priority = GetLocomotion()->GetPriority();
 
-            DebugScreenText( msg.sprintf( "    Destination: %s (%.2f,%.2f,%.2f)", GetLocomotion()->GetDescription(), vecDestination.x, vecDestination.y, vecDestination.z ), blue );
+            DebugScreenText( msg.sprintf( "    Destination: %s (%.2f since build)", GetLocomotion()->GetDescription(), GetLocomotion()->GetPath()->GetElapsedTimeSinceBuild() ), blue );
             DebugScreenText( msg.sprintf( "    Distance Left: %.2f", GetLocomotion()->GetDistanceToDestination() ), blue );
             DebugScreenText( msg.sprintf( "    Priority: %s", g_PriorityNames[priority] ), blue );
             DebugScreenText( msg.sprintf( "    Using Ladder: %i", GetLocomotion()->IsUsingLadder() ), blue );
-            DebugScreenText( msg.sprintf( "    Commands: forward: %.2f, side: %.2f, up: %.2f", GetUserCommand()->forwardmove, GetUserCommand()->sidemove, GetUserCommand()->upmove ), blue );
+            //DebugScreenText( msg.sprintf( "    Commands: forward: %.2f, side: %.2f, up: %.2f", GetUserCommand()->forwardmove, GetUserCommand()->sidemove, GetUserCommand()->upmove ), blue );
 
             if ( GetFollow() && GetFollow()->IsFollowing() ) {
                 DebugScreenText( msg.sprintf( "    Following: %s (Enabled: %i)", GetFollow()->GetEntity()->GetClassname(), GetFollow()->IsEnabled() ), blue );

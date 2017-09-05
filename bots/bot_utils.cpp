@@ -83,14 +83,14 @@ bool CEntityMemory::IsHitboxVisible( HitboxType part )
 //================================================================================
 float CEntityMemory::GetDistance() const
 {
-    return m_pBot->GetHost()->GetAbsOrigin().DistTo( m_vecLastPosition );
+    return m_pBot->GetHost()->GetAbsOrigin().DistTo( GetLastKnownPosition() );
 }
 
 //================================================================================
 //================================================================================
 float CEntityMemory::GetDistanceSquare() const
 {
-    return m_pBot->GetHost()->GetAbsOrigin().DistToSqr( m_vecLastPosition );
+    return m_pBot->GetHost()->GetAbsOrigin().DistToSqr( GetLastKnownPosition() );
 }
 
 //================================================================================

@@ -359,6 +359,7 @@ enum
 #define BOT_DESIRE_MODERATE 0.5f
 #define BOT_DESIRE_HIGH		0.7f
 #define BOT_DESIRE_VERYHIGH 0.9f
+#define BOT_DESIRE_FORCED   0.99f
 #define BOT_DESIRE_ABSOLUTE 1.0f
 
 //================================================================================
@@ -450,10 +451,10 @@ enum
 
 	BTASK_HUNT_ENEMY,                   // Hunt our enemy
 
-    BTASK_GET_SPAWN,                    // Save the position where we spawn
-	BTASK_GET_SPOT_ASIDE,               // Find and save a random near position. (In the same NavArea where we are)
-	BTASK_GET_COVER,                    // Find and save a cover position.
-	BTASK_GET_FAR_COVER,                // Finding and storing a distant cover position.
+    BTASK_SAVE_SPAWN_POSITION,          // Save the position where we spawn
+	BTASK_SAVE_ASIDE_SPOT,              // Find and save a random near position. (In the same NavArea where we are)
+	BTASK_SAVE_COVER_SPOT,              // Find and save a cover position.
+	BTASK_SAVE_FAR_COVER_SPOT,          // Finding and storing a distant cover position.
 
 	BTASK_AIM,                          // Aim to a specific spot
 
@@ -469,6 +470,10 @@ enum
 	BTASK_HEAL,                         // Heal (TODO: Only gives health to itself)
 
 	BTASK_CALL_FOR_BACKUP,              // Request reinforcements (TODO)
+
+    BTASK_SET_FAIL_SCHEDULE,            // If the schedule fails, the indicated schedule will run
+    BTASK_SET_SCHEDULE,                 // Running the specified schedule at the end of the active
+
 	BLAST_TASK,
 
 	BCUSTOM_TASK = 999
@@ -551,10 +556,7 @@ static const char *g_BotStrategie[LAST_STRATEGIE] =
 enum BotPerformance
 {
     BOT_PERFORMANCE_AWAKE = 0,
-    BOT_PERFORMANCE_VISIBILITY,
     BOT_PERFORMANCE_PVS,
-    BOT_PERFORMANCE_PVS_AND_VISIBILITY,
-    BOT_PERFORMANCE_SLEEP_PVS,
 
     LAST_PERFORMANCE
 };
@@ -624,8 +626,8 @@ enum BCOND
     BCOND_ENEMY_LOST,
     BCOND_ENEMY_OCCLUDED,
     BCOND_ENEMY_OCCLUDED_BY_FRIEND,
+    BCOND_ENEMY_LAST_POSITION_VISIBLE,
     BCOND_ENEMY_DEAD,
-    BCOND_ENEMY_UNREACHABLE, // TODO
 
     BCOND_ENEMY_TOO_NEAR,
     BCOND_ENEMY_NEAR,
@@ -657,6 +659,7 @@ enum BCOND
     BCOND_BETTER_WEAPON_AVAILABLE,
     BCOND_MOBBED_BY_ENEMIES, // TODO
     BCOND_PLAYER_PUSHING, // TODO
+    BCOND_GOAL_UNREACHABLE,
 
     BCOND_SMELL_MEAT,
     BCOND_SMELL_CARCASS,
@@ -704,8 +707,9 @@ static const char *g_Conditions[LAST_BCONDITION] = {
     "ENEMY_LOST",
     "ENEMY_OCCLUDED",
     "ENEMY_OCCLUDED_BY_FRIEND",
+    "ENEMY_LAST_POSITION_VISIBLE",
     "ENEMY_DEAD",
-    "ENEMY_UNREACHABLE",
+
     "ENEMY_TOO_NEAR",
     "ENEMY_NEAR",
     "ENEMY_FAR",
@@ -736,6 +740,7 @@ static const char *g_Conditions[LAST_BCONDITION] = {
     "BETTER_WEAPON_AVAILABLE",
     "MOBBED_BY_ENEMIES",
     "PLAYER_PUSHING",
+    "GOAL_UNREACHABLE",
 
     "SMELL_MEAT",
     "SMELL_CARCASS",

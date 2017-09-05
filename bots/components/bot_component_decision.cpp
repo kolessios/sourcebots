@@ -86,12 +86,16 @@ bool CBotDecision::ShouldLookThreat() const
         return false;
     }
 
-    // We have lost sight of our enemy for a while, let us look elsewhere
-    if ( !GetProfile()->IsEasiest() ) {
-        if ( HasCondition( BCOND_ENEMY_LOST ) && HasCondition( BCOND_ENEMY_TOO_FAR ) ) {
+    // We have no vision of the enemy
+    if ( HasCondition( BCOND_ENEMY_LOST ) ) {
+        // But we have a vision of his last position and we are close
+        // Let's start looking at other sides
+        if ( HasCondition( BCOND_ENEMY_LAST_POSITION_VISIBLE ) && (HasCondition( BCOND_ENEMY_TOO_NEAR ) || HasCondition( BCOND_ENEMY_NEAR )) )
             return false;
-        }
-    }
+
+        if ( HasCondition( BCOND_ENEMY_TOO_FAR ) )
+            return false;
+    }    
 
     return true;
 }
@@ -1060,7 +1064,7 @@ BCOND CBotDecision::ShouldRangeAttack1()
 
         if ( !GetVision()->IsAimReady() ) {
             // We still do not have our aim on the enemy, but humans usually shoot regardless.
-            if ( RandomInt(0, 10) <= 7 )
+            if ( RandomInt(0, 100) <= 70 )
                 return BCOND_NOT_FACING_ATTACK;
         }
     }

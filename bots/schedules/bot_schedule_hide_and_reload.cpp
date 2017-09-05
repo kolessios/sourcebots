@@ -18,25 +18,34 @@
 
 //================================================================================
 //================================================================================
-BEGIN_SETUP_SCHEDULE( CHideAndReloadSchedule )
-    ADD_TASK( BTASK_SAVE_POSITION,	  NULL )
-	ADD_TASK( BTASK_RUN,	          NULL )
-	ADD_TASK( BTASK_RELOAD,	          true )
-    ADD_TASK( BTASK_GET_COVER,		  NULL )
-	ADD_TASK( BTASK_MOVE_DESTINATION, NULL )
-	ADD_TASK( BTASK_CROUCH,			  NULL )
-    ADD_TASK( BTASK_WAIT,			  RandomFloat(0.5f, 2.5f) )
-	ADD_TASK( BTASK_RESTORE_POSITION, NULL )
+SET_SCHEDULE_TASKS( CHideAndReloadSchedule )
+{
+    ADD_TASK( BTASK_SET_FAIL_SCHEDULE, SCHEDULE_RELOAD );
+    ADD_TASK( BTASK_RUN, NULL );
+    ADD_TASK( BTASK_SAVE_POSITION, NULL );
+    ADD_TASK( BTASK_SAVE_COVER_SPOT, NULL );
+    ADD_TASK( BTASK_RELOAD, true );
+    ADD_TASK( BTASK_MOVE_DESTINATION, NULL );
+    ADD_TASK( BTASK_CROUCH, NULL );
+    ADD_TASK( BTASK_WAIT, RandomFloat( 1.0f, 2.5f ) );
+    ADD_TASK( BTASK_RESTORE_POSITION, NULL );
+}
 
-    ADD_INTERRUPT( BCOND_EMPTY_PRIMARY_AMMO )
-    ADD_INTERRUPT( BCOND_ENEMY_DEAD )
-    ADD_INTERRUPT( BCOND_LOW_HEALTH )
-    ADD_INTERRUPT( BCOND_DEJECTED )
-END_SCHEDULE()
+SET_SCHEDULE_INTERRUPTS( CHideAndReloadSchedule )
+{
+    ADD_INTERRUPT( BCOND_EMPTY_PRIMARY_AMMO );
+    ADD_INTERRUPT( BCOND_HELPLESS );
+    ADD_INTERRUPT( BCOND_WITHOUT_ENEMY );
+    ADD_INTERRUPT( BCOND_LOW_HEALTH );
+    ADD_INTERRUPT( BCOND_DEJECTED );
+    ADD_INTERRUPT( BCOND_MOBBED_BY_ENEMIES );
+    ADD_INTERRUPT( BCOND_GOAL_UNREACHABLE );
+    ADD_INTERRUPT( BCOND_HEAR_MOVE_AWAY );
+}
 
 //================================================================================
 //================================================================================
-float CurrentSchedule::GetDesire() const
+float CHideAndReloadSchedule::GetDesire() const
 {
     if ( !GetDecision()->CanMove() )
         return BOT_DESIRE_NONE;
@@ -44,7 +53,7 @@ float CurrentSchedule::GetDesire() const
     if ( !GetDecision()->ShouldCover() )
         return BOT_DESIRE_NONE;
 
-    if ( HasCondition( BCOND_EMPTY_CLIP1_AMMO ) && !HasCondition( BCOND_EMPTY_PRIMARY_AMMO ) ) {
+    if ( HasCondition( BCOND_EMPTY_CLIP1_AMMO ) ) {
         if ( GetBot()->IsCombating() || GetBot()->IsAlerted() )
             return 0.92f;
     }
@@ -54,7 +63,7 @@ float CurrentSchedule::GetDesire() const
 
 //================================================================================
 //================================================================================
-void CurrentSchedule::TaskRun()
+void CHideAndReloadSchedule::TaskRun()
 {
     BotTaskInfo_t *pTask = GetActiveTask();
 

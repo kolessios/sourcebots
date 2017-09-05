@@ -46,9 +46,9 @@ public:
     virtual int GetAimSpeed();
     virtual float GetStiffness();
 
-    virtual bool LookAt( const char *pDesc, CBaseEntity *pTarget, int priority = PRIORITY_VERY_LOW, float duration = 1.0f );
-    virtual bool LookAt( const char *pDesc, CBaseEntity *pTarget, const Vector &vecGoal, int priority = PRIORITY_VERY_LOW, float duration = 1.0f );
-    virtual bool LookAt( const char *pDesc, const Vector &vecGoal, int priority = PRIORITY_VERY_LOW, float duration = 1.0f );
+    virtual bool LookAt( const char *pDesc, CBaseEntity *pTarget, int priority = PRIORITY_VERY_LOW, float duration = 1.0f, float cosTolerance = 1.0f );
+    virtual bool LookAt( const char *pDesc, CBaseEntity *pTarget, const Vector &vecGoal, int priority = PRIORITY_VERY_LOW, float duration = 1.0f, float cosTolerance = 1.0f );
+    virtual bool LookAt( const char *pDesc, const Vector &goal, int priority = PRIORITY_VERY_LOW, float duration = 1.0f, float cosTolerance = 1.0f );
 
     virtual void LookAtThreat();
 
@@ -80,6 +80,8 @@ public:
     virtual void Update();
 
 public:
+    virtual void UpdateCommands();
+
     virtual bool DriveTo( const char *pDesc, const Vector &vecGoal, int priority = PRIORITY_VERY_LOW, float tolerance = -1.0f );
     virtual bool DriveTo( const char *pDesc, CBaseEntity *pTarget, int priority = PRIORITY_VERY_LOW, float tolerance = -1.0f );
     virtual bool DriveTo( const char *pDesc, CNavArea *pTargetArea, int priority = PRIORITY_VERY_LOW, float tolerance = -1.0f );
@@ -94,6 +96,7 @@ public:
     virtual void CheckPath();
     virtual void ComputePath();
 
+    virtual bool IsUnreachable() const;
     virtual bool IsStuck() const;
     virtual float GetStuckDuration() const;
     virtual void ResetStuck();

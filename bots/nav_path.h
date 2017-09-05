@@ -37,10 +37,18 @@ public:
         const CNavLadder *ladder;                                ///< if "how" refers to a ladder, this is it
     };
 
-    const PathSegment * operator[] ( int i ) const        { return (i >= 0 && i < m_segmentCount) ? &m_path[i] : NULL; }
-    const PathSegment *GetSegment( int i ) const        { return (i >= 0 && i < m_segmentCount) ? &m_path[i] : NULL; }
-    int GetSegmentCount( void ) const                    { return m_segmentCount; }
-    const Vector &GetEndpoint( void ) const                { return m_path[ m_segmentCount-1 ].pos; }
+    const PathSegment * operator[] ( int i ) const {
+        return (i >= 0 && i < m_segmentCount) ? &m_path[i] : NULL;
+    }
+    const PathSegment *GetSegment( int i ) const {
+        return (i >= 0 && i < m_segmentCount) ? &m_path[i] : NULL;
+    }
+    int GetSegmentCount( void ) const {
+        return m_segmentCount;
+    }
+    const Vector &GetEndpoint( void ) const {
+        return m_path[m_segmentCount - 1].pos;
+    }
     bool IsAtEnd( const Vector &pos ) const;                    ///< return true if position is at the end of the path
 
     float GetLength( void ) const;                                ///< return length of path from start to finish
@@ -49,8 +57,23 @@ public:
     /// return the node index closest to the given distance along the path without going over - returns (-1) if error
     int GetSegmentIndexAlongPath( float distAlong ) const;
 
-    bool IsValid( void ) const    { return (m_segmentCount > 0); }
-    void Invalidate( void )        { m_segmentCount = 0; }
+    bool IsUnreachable() const {
+        return m_bUnreachable;
+    }
+
+    bool IsValid( void ) const {
+        return (m_segmentCount > 0);
+    }
+
+    void Invalidate( void ) {
+        m_segmentCount = 0;
+        m_bUnreachable = false;
+        m_BuildTimer.Invalidate();
+    }
+
+    float GetElapsedTimeSinceBuild() const {
+        return m_BuildTimer.GetElapsedTime();
+    }
 
     void Draw( const Vector &color = Vector( 1.0f, 0.3f, 0 ) );    ///< draw the path for debugging
 
@@ -58,11 +81,11 @@ public:
     bool FindClosestPointOnPath( const Vector *worldPos, int startIndex, int endIndex, Vector *close ) const;
 
     void Optimize( void );
-    
+
     /**
      * Compute shortest path from 'start' to 'goal' via A* algorithm.
      * If returns true, path was build to the goal position.
-     * If returns false, path may either be invalid (use IsValid() to check), or valid but 
+     * If returns false, path may either be invalid (use IsValid() to check), or valid but
      * doesn't reach all the way to the goal.
      */
     template< typename CostFunctor >
@@ -71,28 +94,24 @@ public:
         Invalidate();
 
         CNavArea *startArea = TheNavMesh->GetNearestNavArea( start + Vector( 0.0f, 0.0f, 1.0f ) );
-        if (startArea == NULL)
-        {
+        if ( startArea == NULL ) {
             return false;
         }
 
         CNavArea *goalArea = TheNavMesh->GetNavArea( goal );
 
         // if we are already in the goal area, build trivial path
-        if (startArea == goalArea)
-        {
+        if ( startArea == goalArea ) {
             BuildTrivialPath( start, goal );
             return true;
         }
 
         // make sure path end position is on the ground
         Vector pathEndPosition = goal;
-        if (goalArea)
-        {
+        if ( goalArea ) {
             pathEndPosition.z = goalArea->GetZ( pathEndPosition );
         }
-        else
-        {
+        else {
             TheNavMesh->GetGroundHeight( pathEndPosition, &pathEndPosition.z );
         }
 
@@ -102,10 +121,8 @@ public:
         CNavArea *closestArea;
         bool pathResult = NavAreaBuildPath( startArea, goalArea, &goal, costFunc, &closestArea );
 
-        if ( !pathResult ) {
-            Invalidate();
-            return false;
-        }
+        m_BuildTimer.Start();
+        m_bUnreachable = !pathResult;
 
         //
         // Build path by following parent links
@@ -114,59 +131,60 @@ public:
         // get count
         int count = 0;
         CNavArea *area;
-        for( area = closestArea; area; area = area->GetParent() )
-        {
+        for ( area = closestArea; area; area = area->GetParent() ) {
             ++count;
         }
 
         // save room for endpoint
-        if (count > MAX_PATH_SEGMENTS-1)
-        {
-            count = MAX_PATH_SEGMENTS-1;
+        if ( count > MAX_PATH_SEGMENTS - 1 ) {
+            count = MAX_PATH_SEGMENTS - 1;
         }
 
-        if (count == 0)
-        {
+        if ( count == 0 ) {
             return false;
         }
 
-        if (count == 1)
-        {
+        if ( count == 1 ) {
             BuildTrivialPath( start, goal );
             return true;
         }
 
         // build path
         m_segmentCount = count;
-        for( area = closestArea; count && area; area = area->GetParent() )
-        {
+        for ( area = closestArea; count && area; area = area->GetParent() ) {
             --count;
-            m_path[ count ].area = area;
-            m_path[ count ].how = area->GetParentHow();
+            m_path[count].area = area;
+            m_path[count].how = area->GetParentHow();
         }
 
         // compute path positions
-        if (ComputePathPositions(start) == false)
-        {
+        if ( ComputePathPositions( start ) == false ) {
             //PrintIfWatched( "CNavPath::Compute: Error building path\n" );
             Invalidate();
             return false;
         }
 
         // append path end position
-        m_path[ m_segmentCount ].area = closestArea;
-        m_path[ m_segmentCount ].pos = pathEndPosition;
-        m_path[ m_segmentCount ].ladder = NULL;
-        m_path[ m_segmentCount ].how = NUM_TRAVERSE_TYPES;
+        m_path[m_segmentCount].area = closestArea;
+        m_path[m_segmentCount].pos = pathEndPosition;
+        m_path[m_segmentCount].ladder = NULL;
+        m_path[m_segmentCount].how = NUM_TRAVERSE_TYPES;
         ++m_segmentCount;
+
 
         return pathResult;
     }
 
 private:
-    enum { MAX_PATH_SEGMENTS = 256 };
-    PathSegment m_path[ MAX_PATH_SEGMENTS ];
+    enum
+    {
+        MAX_PATH_SEGMENTS = 256
+    };
+    PathSegment m_path[MAX_PATH_SEGMENTS];
     int m_segmentCount;
+    bool m_bUnreachable;
+
+    IntervalTimer m_BuildTimer;
 
     bool ComputePathPositions( const Vector &start );                                    ///< determine actual path positions 
     bool BuildTrivialPath( const Vector &start, const Vector &goal );    ///< utility function for when start and goal are in the same area

@@ -18,22 +18,23 @@
 
 //================================================================================
 //================================================================================
-BEGIN_SETUP_SCHEDULE( CReloadSchedule )
-    ADD_TASK( BTASK_RELOAD, NULL )
+SET_SCHEDULE_TASKS( CReloadSchedule )
+{
+    ADD_TASK( BTASK_RELOAD, NULL );
+}
 
-    ADD_INTERRUPT( BCOND_HEAVY_DAMAGE )
-    ADD_INTERRUPT( BCOND_EMPTY_PRIMARY_AMMO )
-END_SCHEDULE()
+SET_SCHEDULE_INTERRUPTS( CReloadSchedule )
+{
+    ADD_INTERRUPT( BCOND_HEAVY_DAMAGE );
+    ADD_INTERRUPT( BCOND_EMPTY_PRIMARY_AMMO );
+}
 
 //================================================================================
 //================================================================================
-float CurrentSchedule::GetDesire() const
+float CReloadSchedule::GetDesire() const
 {
 	if ( GetDecision()->ShouldCover() )
 		return BOT_DESIRE_NONE;
-
-    if ( HasCondition(BCOND_EMPTY_PRIMARY_AMMO) )
-        return BOT_DESIRE_NONE;
 
     if ( HasCondition(BCOND_EMPTY_CLIP1_AMMO) )
 		return 0.81f;

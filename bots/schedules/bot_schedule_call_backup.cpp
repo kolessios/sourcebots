@@ -18,17 +18,22 @@
 
 //================================================================================
 //================================================================================
-BEGIN_SETUP_SCHEDULE( CCallBackupSchedule )
-    ADD_TASK( BTASK_SAVE_POSITION,	 NULL )
-	ADD_TASK( BTASK_RUN,	         NULL )
-    ADD_TASK( BTASK_GET_FAR_COVER,	 1000.0f )
-	ADD_TASK( BTASK_CROUCH,			 NULL )
-	ADD_TASK( BTASK_HEAL,			 NULL )
-	ADD_TASK( BTASK_RELOAD,			 NULL )
-    ADD_TASK( BTASK_WAIT,			 RandomFloat(2.0f, 6.0f) )
-	ADD_TASK( BTASK_CALL_FOR_BACKUP, NULL )
-	ADD_TASK( BTASK_WAIT,			 RandomFloat(2.0f, 6.0f) )
-	ADD_TASK( BTASK_RESTORE_POSITION, NULL )
+SET_SCHEDULE_TASKS( CCallBackupSchedule )
+{
+    ADD_TASK( BTASK_SAVE_POSITION, NULL );
+    ADD_TASK( BTASK_RUN, NULL );
+    ADD_TASK( BTASK_SAVE_FAR_COVER_SPOT, 1000.0f );
+    ADD_TASK( BTASK_CROUCH, NULL );
+    ADD_TASK( BTASK_HEAL, NULL );
+    ADD_TASK( BTASK_RELOAD, NULL );
+    ADD_TASK( BTASK_WAIT, RandomFloat( 2.0f, 6.0f ) );
+    ADD_TASK( BTASK_CALL_FOR_BACKUP, NULL );
+    ADD_TASK( BTASK_WAIT, RandomFloat( 2.0f, 6.0f ) );
+    ADD_TASK( BTASK_RESTORE_POSITION, NULL );
+}
 
-    ADD_INTERRUPT( BCOND_DEJECTED )
-END_SCHEDULE()
+SET_SCHEDULE_INTERRUPTS( CCallBackupSchedule )
+{
+    ADD_INTERRUPT( BCOND_DEJECTED );
+    ADD_INTERRUPT( BCOND_GOAL_UNREACHABLE );
+}

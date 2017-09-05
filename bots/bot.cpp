@@ -244,7 +244,7 @@ bool CBot::CanRunAI()
     if ( !GetHost()->IsActive() )
         return false;
 
-    if ( GetPerformance() == BOT_PERFORMANCE_SLEEP_PVS ) {
+    if ( GetPerformance() == BOT_PERFORMANCE_PVS ) {
         CHumanPVSFilter filter( GetAbsOrigin() );
 
         if ( filter.GetRecipientCount() == 0 )
@@ -263,7 +263,6 @@ bool CBot::CanRunAI()
 //================================================================================
 void CBot::Upkeep()
 {
-    UpdateComponents( true );
 }
 
 //================================================================================
@@ -273,13 +272,17 @@ void CBot::RunAI()
 {
     m_RunTimer.Start();
 
+    BlockConditions();
+
     ApplyDebugCommands();
 
-    SelectPreConditions();
+    UpdateComponents( true );
+
+    GatherConditions();
+
+    UnblockConditions();
 
     UpdateComponents( false );
-
-    SelectPostConditions();
 
     UpdateSchedule();
 
@@ -357,37 +360,6 @@ void CBot::ApplyDebugCommands()
             }
         }
     }
-}
-
-//================================================================================
-// Returns whether we should optimize parts of the A.I.
-//================================================================================
-bool CBot::ShouldOptimize()
-{
-    if ( bot_optimize.GetBool() )
-        return true;
-
-    // TODO: This works?
-    if ( (gpGlobals->tickcount % 2) )
-        return false;
-
-#ifdef INSOURCE_DLL
-    // We optimize if no human player is watching us.
-    if ( GetPerformance() == BOT_PERFORMANCE_VISIBILITY || GetPerformance() == BOT_PERFORMANCE_PVS_AND_VISIBILITY ) {
-        if ( !ThePlayersSystem->IsVisible(GetHost()) )
-            return true;
-    }
-
-    // We optimize if no human player is in our PVS
-    if ( GetPerformance() == BOT_PERFORMANCE_PVS || GetPerformance() == BOT_PERFORMANCE_PVS_AND_VISIBILITY ) {
-        CHumanPVSFilter filter(GetAbsOrigin());
-
-        if ( filter.GetRecipientCount() == 0 )
-            return true;
-    }
-#endif
-
-    return false;
 }
 
 //================================================================================
@@ -651,10 +623,10 @@ CON_COMMAND_F( bot_debug_drive_random, "Orders all bots to move at random sites"
         Vector vecFrom( pPlayer->GetAbsOrigin() );
         CNavArea *pArea = NULL;
 
-        while ( !pArea ) {
+        while ( true ) {
             pArea = TheNavAreas[RandomInt( 0, TheNavAreas.Count() - 1 )];
 
-            if ( !pArea )
+            if ( pArea == NULL )
                 continue;
 
             Vector vecGoal( pArea->GetCenter() );
@@ -663,6 +635,7 @@ CON_COMMAND_F( bot_debug_drive_random, "Orders all bots to move at random sites"
                 continue;
 
             pBot->GetLocomotion()->DriveTo( "bot_debug_drive_random", pArea );
+            break;
         }
     }
 }

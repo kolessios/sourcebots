@@ -27,9 +27,9 @@ public:
     virtual int GetAimSpeed() = 0;
     virtual float GetStiffness() = 0;
 
-    virtual bool LookAt( const char *pDesc, CBaseEntity *pTarget, int priority = PRIORITY_VERY_LOW, float duration = 1.0f ) = 0;
-    virtual bool LookAt( const char *pDesc, CBaseEntity *pTarget, const Vector &vecGoal, int priority = PRIORITY_VERY_LOW, float duration = 1.0f ) = 0;
-    virtual bool LookAt( const char *pDesc, const Vector &vecGoal, int priority = PRIORITY_VERY_LOW, float duration = 1.0f ) = 0;
+    virtual bool LookAt( const char *pDesc, CBaseEntity *pTarget, int priority = PRIORITY_VERY_LOW, float duration = 1.0f, float cosTolerance = 1.0f ) = 0;
+    virtual bool LookAt( const char *pDesc, CBaseEntity *pTarget, const Vector &vecGoal, int priority = PRIORITY_VERY_LOW, float duration = 1.0f, float cosTolerance = 1.0f ) = 0;
+    virtual bool LookAt( const char *pDesc, const Vector &goal, int priority = PRIORITY_VERY_LOW, float duration = 1.0f, float cosTolerance = 1.0f ) = 0;
 
     virtual void LookAtThreat() = 0;
 public:
@@ -45,11 +45,8 @@ public:
         m_flLookYawVel = 0.0f;
         m_flLookPitchVel = 0.0f;
         m_flDuration = 0.0f;
+        m_flCosTolerance = 1.5f;
         m_VisionTimer.Invalidate();
-    }
-
-    virtual bool ItsImportant() const {
-        return true;
     }
 
     virtual CountdownTimer GetTimer() {
@@ -100,6 +97,7 @@ protected:
     int m_iPriority;
 
     bool m_bAimReady;
+    float m_flCosTolerance;
 
     float m_flLookYawVel;
     float m_flLookPitchVel;

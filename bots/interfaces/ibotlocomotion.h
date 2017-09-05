@@ -23,6 +23,8 @@ public:
     }
 
 public:
+    virtual void UpdateCommands() = 0;
+
     virtual bool DriveTo( const char *pDesc, const Vector &vecGoal, int priority = PRIORITY_VERY_LOW, float tolerance = -1.0f ) = 0;
     virtual bool DriveTo( const char *pDesc, CBaseEntity *pTarget, int priority = PRIORITY_VERY_LOW, float tolerance = -1.0f ) = 0;
     virtual bool DriveTo( const char *pDesc, CNavArea *pTargetArea, int priority = PRIORITY_VERY_LOW, float tolerance = -1.0f ) = 0;
@@ -37,6 +39,7 @@ public:
     virtual void CheckPath() = 0;
     virtual void ComputePath() = 0;
 
+    virtual bool IsUnreachable() const = 0;
     virtual bool IsStuck() const = 0;
     virtual float GetStuckDuration() const = 0;
     virtual void ResetStuck() = 0;
@@ -90,10 +93,6 @@ public:
         m_NavPathFollower->SetPath( m_NavPath );
         m_NavPathFollower->SetImprov( this );
         m_NavPathFollower->SetFollowPathExactly( false );
-    }
-
-    virtual bool ItsImportant() const {
-        return true;
     }
 
     virtual bool HasDestination() const {

@@ -469,7 +469,7 @@ bool Utils::GetEntityBones( CBaseEntity *pEntity, HitboxBones &bones )
             return true;
         }
         else if ( pEntity->GetTeamNumber() == TEAM_COMBINE ) {
-            bones.head = 1;
+            bones.head = 17;
             bones.chest = 17;
             bones.leftLeg = 8;
             bones.rightLeg = 12;

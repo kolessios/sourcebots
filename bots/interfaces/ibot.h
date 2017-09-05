@@ -183,13 +183,13 @@ public:
     virtual void TaskComplete() = 0;
     virtual void TaskFail( const char *pWhy ) = 0;
 
-    virtual void SelectPreConditions() = 0;
-    virtual void SelectPostConditions() = 0;
+    virtual void GatherConditions() = 0;
 
-    virtual void SelectHealthConditions() = 0;
-    virtual void SelectWeaponConditions() = 0;
-    virtual void SelectEnemyConditions() = 0;
-    virtual void SelectAttackConditions() = 0;
+    virtual void GatherHealthConditions() = 0;
+    virtual void GatherWeaponConditions() = 0;
+    virtual void GatherEnemyConditions() = 0;
+    virtual void GatherAttackConditions() = 0;
+    virtual void GatherLocomotionConditions() = 0;
 
     virtual CBaseEntity *GetEnemy() const = 0;
     virtual CEntityMemory *GetPrimaryThreat() const = 0;

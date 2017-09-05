@@ -44,7 +44,8 @@ public:
         return false;
     }
 
-    // Indicates whether the component is important and should be updated with each tick.
+    // Returns whether the component is important and must be updated before gathering conditions
+    // If true, make sure that the component does not use "HasCondition"
     virtual bool ItsImportant() const {
         return false;
     }

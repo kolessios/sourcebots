@@ -26,31 +26,6 @@
 #include "bots\interfaces\ibotschedule.h"
 
 //================================================================================
-// Investigar un sonido y regresar a donde estabamos si no había nada
-//================================================================================
-class CInvestigateSoundSchedule : public IBotSchedule
-{
-public:
-	DECLARE_CLASS_GAMEROOT( CInvestigateSoundSchedule, IBotSchedule );
-    DECLARE_SCHEDULE( SCHEDULE_INVESTIGATE_SOUND );
-
-    CInvestigateSoundSchedule( IBot *bot ) : BaseClass( bot )
-    {
-    }
-
-public:
-	virtual bool ItsImportant() { return true; }
-
-    virtual float GetDesire() const;
-	virtual void SetLocation( const Vector location ) { m_vecSoundPosition = location; }
-
-	virtual void TaskStart();
-
-protected:
-    Vector m_vecSoundPosition;
-};
-
-//================================================================================
 // Investigar una ubicación y regresar a donde estabamos si no había nada
 //================================================================================
 class CInvestigateLocationSchedule : public IBotSchedule
@@ -65,12 +40,7 @@ public:
 
 public:
 	virtual bool ItsImportant() { return true; }
-
     virtual float GetDesire() const;
-    virtual void SetLocation( const Vector location ) { m_vecLocation = location; }
-
-protected:
-    Vector m_vecLocation;
 };
 
 //================================================================================

@@ -27,13 +27,6 @@ void CBot::OnLooked( int iDistance )
 {
     VPROF_BUDGET( "OnLooked", VPROF_BUDGETGROUP_BOTS );
 
-    ClearCondition( BCOND_SEE_FRIEND );
-    ClearCondition( BCOND_SEE_HATE );
-    ClearCondition( BCOND_SEE_FEAR );
-    ClearCondition( BCOND_SEE_DISLIKE );
-    ClearCondition( BCOND_BETTER_WEAPON_AVAILABLE );
-    ClearCondition( BCOND_SEE_DEJECTED_FRIEND );
-
     AISightIter_t iter;
     CBaseEntity *pSightEnt = GetSenses()->GetFirstSeenEntity( &iter );
 
@@ -42,10 +35,6 @@ void CBot::OnLooked( int iDistance )
 
     // TODO: This "optimization" works?
     int limit = 25;
-
-    if ( ShouldOptimize() ) {
-        limit = 5;
-    }
 
     while ( pSightEnt ) {
         OnLooked( pSightEnt );
@@ -116,19 +105,6 @@ void CBot::OnLooked( CBaseEntity *pSightEnt )
 void CBot::OnListened()
 {
     VPROF_BUDGET( "OnListened", VPROF_BUDGETGROUP_BOTS );
-
-    ClearCondition( BCOND_HEAR_COMBAT );
-    ClearCondition( BCOND_HEAR_WORLD );
-    ClearCondition( BCOND_HEAR_ENEMY );
-    ClearCondition( BCOND_HEAR_ENEMY_FOOTSTEP );
-    ClearCondition( BCOND_HEAR_BULLET_IMPACT );
-    ClearCondition( BCOND_HEAR_BULLET_IMPACT_SNIPER );
-    ClearCondition( BCOND_HEAR_DANGER );
-    ClearCondition( BCOND_HEAR_MOVE_AWAY );
-    ClearCondition( BCOND_HEAR_SPOOKY );
-    ClearCondition( BCOND_SMELL_MEAT );
-    ClearCondition( BCOND_SMELL_CARCASS );
-    ClearCondition( BCOND_SMELL_GARBAGE );
 
     AISoundIter_t iter;
     CSound *pCurrentSound = GetSenses()->GetFirstHeardSound( &iter );
@@ -247,14 +223,6 @@ void CBot::OnTakeDamage( const CTakeDamageInfo &info )
         ++m_iRepeatedDamageTimes;
         m_flDamageAccumulated += info.GetDamage();
     }
-#else
-    // TODO: This does not work here
-    if ( info.GetDamage() <= 10 ) {
-        SetCondition( BCOND_LIGHT_DAMAGE );
-    }
-    else {
-        SetCondition( BCOND_HEAVY_DAMAGE );
-    }
 #endif
 }
 
@@ -264,7 +232,7 @@ void CBot::OnTakeDamage( const CTakeDamageInfo &info )
 void CBot::OnDeath( const CTakeDamageInfo &info ) 
 {
     if ( GetActiveSchedule() ) {
-        GetActiveSchedule()->Fail("Player Death");
+        GetActiveSchedule()->Fail( "Player Death" );
         GetActiveSchedule()->Finish();
         m_nActiveSchedule = NULL;
     }

@@ -36,8 +36,6 @@ public:
     {
         SetDefLessFunc( m_Memory );
         SetDefLessFunc( m_DataMemory );
-        //SetDefLessFunc( m_Threats );
-        //SetDefLessFunc( m_Friends );
     }
 
 public:
@@ -102,11 +100,12 @@ public:
         m_pIdealThreat = NULL;
         m_flNearbyDistance = 1000.0;
 
-        //m_Threats.Purge();
-        //m_Friends.Purge();
-
         m_Memory.Purge();
         m_DataMemory.Purge();
+    }
+
+    virtual bool ItsImportant() const {
+        return true;
     }
 
     virtual bool IsEnabled() const {
@@ -149,9 +148,6 @@ protected:
 
     CUtlMap<int, CEntityMemory *> m_Memory;
     CUtlMap<string_t, CDataMemory *> m_DataMemory;
-
-    //CUtlMap<int, CEntityMemory *> m_Threats;
-    //CUtlMap<int, CEntityMemory *> m_Friends;
 
     friend class CBot;
 };

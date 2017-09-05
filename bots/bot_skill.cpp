@@ -66,9 +66,9 @@ void CBotProfile::SetSkill( int skill )
             SetMemoryDuration( 10.0f );
             SetReactionDelay( RandomFloat( 0.0f, 0.01f ) );
             SetAlertDuration( RandomFloat( 4.0f, 7.0f ) );
-            SetAimSpeed( AIM_SPEED_NORMAL, AIM_SPEED_VERYFAST );
+            SetAimSpeed( AIM_SPEED_FAST, AIM_SPEED_VERYFAST );
             SetAttackDelay( RandomFloat( 0.0001f, 0.005f ) );
-            SetFavoriteHitbox( RandomInt( HITGROUP_HEAD, HITGROUP_STOMACH ) );
+            SetFavoriteHitbox( RandomInt( HITGROUP_CHEST, HITGROUP_STOMACH ) );
             SetAggression( 100.0f );
             break;
 #else

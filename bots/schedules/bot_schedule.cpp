@@ -24,24 +24,26 @@ void IBotSchedule::Reset()
 {
     BaseClass::Reset();
 
-    m_nActiveTask = NULL;
     m_bFailed = false;
     m_bStarted = false;
     m_bFinished = false;
+
+    m_nActiveTask = NULL;
+    Assert( m_Tasks.Count() == 0 );
+    m_iScheduleOnFail = SCHEDULE_NONE;
+
+    m_WaitTimer.Invalidate();
+    m_FailTimer.Invalidate();
 }
 
 //================================================================================
 //================================================================================
 void IBotSchedule::Start()
 {
-    Assert( m_Tasks.Count() == 0 );
-
     Reset();
 
     m_bStarted = true;
     m_StartTimer.Start();
-    m_FailTimer.Invalidate();
-    m_Interrupts.Purge();
 
     if ( GetLocomotion() ) {
         GetLocomotion()->StopDrive();
@@ -49,8 +51,7 @@ void IBotSchedule::Start()
         GetLocomotion()->StandUp();
     }
 
-    Setup();
-
+    Install_Tasks();
     GetBot()->DebugAddMessage( "[%s] Started", g_BotSchedules[GetID()] );
 }
 
@@ -61,10 +62,13 @@ void IBotSchedule::Finish()
     m_bFinished = true;
     m_bStarted = false;
 
-    m_bFailed = false;
     m_nActiveTask = NULL;
     m_flLastDesire = BOT_DESIRE_NONE;
     m_StartTimer.Invalidate();
+
+    if ( ItsImportant() ) {
+        Assert( m_Tasks.Count() == 0 );
+    }
 
     m_Tasks.Purge();
 
@@ -83,12 +87,36 @@ void IBotSchedule::Fail( const char *pWhy )
 {
 	m_bFailed = true;
     m_FailTimer.Start();
+
+    if ( m_iScheduleOnFail != SCHEDULE_NONE ) {
+        GetMemory()->UpdateDataMemory( "NextSchedule", m_iScheduleOnFail );
+    }
+
     GetBot()->DebugAddMessage("[%s:%s] Failed: %s", g_BotSchedules[GetID()], GetActiveTaskName(), pWhy);
 }
 
 //================================================================================
 //================================================================================
-bool IBotSchedule::ShouldInterrupted() const
+BCOND IBotSchedule::GetInterruption()
+{
+    m_Interrupts.Purge();
+    Install_Interruptions();
+
+    FOR_EACH_VEC( m_Interrupts, it )
+    {
+        BCOND cond = m_Interrupts.Element( it );
+
+        if ( HasCondition( cond ) ) {
+            return cond;
+        }
+    }
+
+    return BCOND_NONE;
+}
+
+//================================================================================
+//================================================================================
+bool IBotSchedule::ShouldInterrupted()
 {
     if ( HasFinished() )
         return true;
@@ -99,6 +127,15 @@ bool IBotSchedule::ShouldInterrupted() const
     if ( !GetHost()->IsAlive() )
         return true;
 
+    BCOND interrupt = GetInterruption();
+
+    if ( interrupt != BCOND_NONE ) {
+        m_bFailed = true;
+        m_FailTimer.Start();
+        GetBot()->DebugAddMessage( "[%s:%s] Interrupted by Condition: %s", g_BotSchedules[GetID()], GetActiveTaskName(), g_Conditions[interrupt] );
+        return true;
+    }
+
     return false;
 }
 
@@ -107,22 +144,33 @@ bool IBotSchedule::ShouldInterrupted() const
 float IBotSchedule::GetInternalDesire()
 {
     if ( HasStarted() ) {
+        // We have to interrupt it
         if ( ShouldInterrupted() )
             return BOT_DESIRE_NONE;
 
+        // It is important: no matter the current level of desire, it is necessary to complete all tasks.
         if ( ItsImportant() )
             return m_flLastDesire;
     }
     else {
-        if ( m_FailTimer.HasStarted() && m_FailTimer.GetElapsedTime() < 1.0f )
+        // We failed less than 2s ago
+        if ( HasFailed() && GetElapsedTimeSinceFail() < 2.0f )
             return BOT_DESIRE_NONE;
 
-        FOR_EACH_VEC( m_Interrupts, it )
-        {
-            BCOND condition = m_Interrupts.Element( it );
+        // One of the interrupts is active
+        if ( GetInterruption() != BCOND_NONE )
+            return BOT_DESIRE_NONE;
 
-            if ( GetBot()->HasCondition( condition ) )
-                return BOT_DESIRE_NONE;
+        if ( GetMemory() ) {
+            int nextSchedule = GetDataMemoryInt( "NextSchedule" );
+
+            // Another schedule has asked to activate this
+            if ( GetID() == nextSchedule ) {
+                GetMemory()->ForgetData( "NextSchedule" );
+
+                m_flLastDesire = BOT_DESIRE_FORCED;
+                return m_flLastDesire;
+            }
         }
     }
 
@@ -135,16 +183,6 @@ float IBotSchedule::GetInternalDesire()
 void IBotSchedule::Update()
 {
     VPROF_BUDGET( "IBotSchedule::Update", VPROF_BUDGETGROUP_BOTS );
-
-    FOR_EACH_VEC( m_Interrupts, it )
-    {
-        BCOND condition = m_Interrupts.Element( it );
-
-        if ( GetBot()->HasCondition( condition ) ) {
-            Fail( UTIL_VarArgs( "Interrupted by Condition (%s)", g_Conditions[condition] ) );
-            return;
-        }
-    }
 
     Assert( m_Tasks.Count() > 0 );
     BotTaskInfo_t *idealTask = m_Tasks.Element( 0 );
@@ -255,6 +293,7 @@ void IBotSchedule::TaskStart()
             GetHost()->DoAnimationEvent( PLAYERANIMEVENT_CUSTOM, activity );
 #else
             Assert( !"Implement in your mod" );
+            TaskComplete();
 #endif
             break;
         }
@@ -277,6 +316,7 @@ void IBotSchedule::TaskStart()
             GetHost()->DoAnimationEvent( PLAYERANIMEVENT_CUSTOM_SEQUENCE, pTask->iValue );
 #else
             Assert( !"Implement in your mod" );
+            TaskComplete();
 #endif
             break;
         }
@@ -300,7 +340,7 @@ void IBotSchedule::TaskStart()
             break;
         }
 
-        case BTASK_GET_SPAWN:
+        case BTASK_SAVE_SPAWN_POSITION:
         {
             Assert( GetMemory() );
 
@@ -319,7 +359,7 @@ void IBotSchedule::TaskStart()
             break;
         }
 
-        case BTASK_GET_SPOT_ASIDE:
+        case BTASK_SAVE_ASIDE_SPOT:
         {
             CNavArea *pArea = GetHost()->GetLastKnownArea();
 
@@ -328,7 +368,8 @@ void IBotSchedule::TaskStart()
             }
 
             if ( pArea == NULL ) {
-                Fail( "Bot without last known Area." );
+                Fail( "Without last known area." );
+                return;
             }
 
             SavePosition( pArea->GetRandomPoint(), 5.0f );
@@ -337,36 +378,38 @@ void IBotSchedule::TaskStart()
             break;
         }
 
-        case BTASK_GET_COVER:
+        case BTASK_SAVE_COVER_SPOT:
         {
+            // We are already in a cover position, 
+            // we skip this task and the next one (which should be MOVE_DESTINATION)
             if ( GetDecision()->IsInCoverPosition() ) {
                 TaskComplete();
                 TaskComplete();
                 return;
             }
 
-            Vector vecPosition;
+            Vector vecGoal;
             float radius = pTask->flValue;
 
-            if ( radius <= 0 ) {
+            if ( radius <= 0.0f ) {
                 radius = GET_COVER_RADIUS;
             }
 
-            if ( !GetDecision()->GetNearestCover( radius, &vecPosition ) ) {
+            if ( !GetDecision()->GetNearestCover( radius, &vecGoal ) ) {
                 Fail( "No cover spot found" );
                 return;
             }
 
-            Assert( vecPosition.IsValid() );
-            SavePosition( vecPosition );
+            Assert( vecGoal.IsValid() );
+            SavePosition( vecGoal );
 
             TaskComplete();
             break;
         }
 
-        case BTASK_GET_FAR_COVER:
+        case BTASK_SAVE_FAR_COVER_SPOT:
         {
-            Vector vecPosition;
+            Vector vecGoal;
             float minRadius = pTask->flValue;
 
             if ( minRadius <= 0 ) {
@@ -383,13 +426,13 @@ void IBotSchedule::TaskStart()
             criteria.OutOfVisibility( true );
             criteria.AvoidTeam( GetBot()->GetEnemy() );
 
-            if ( !Utils::FindCoverPosition( &vecPosition, GetHost(), criteria ) ) {
+            if ( !Utils::FindCoverPosition( &vecGoal, GetHost(), criteria ) ) {
                 Fail( "No far cover spot found" );
                 return;
             }
 
-            Assert( vecPosition.IsValid() );
-            SavePosition( vecPosition );
+            Assert( vecGoal.IsValid() );
+            SavePosition( vecGoal );
 
             TaskComplete();
             break;
@@ -488,14 +531,17 @@ void IBotSchedule::TaskStart()
 
         case BTASK_RELOAD_SAFE:
         {
-            bool reload = true;
+            bool reload = false;
 
-            if ( GetBot()->GetEnemy() ) {
-                CEntityMemory *memory = GetMemory()->GetPrimaryThreat();
+            if ( HasCondition( BCOND_WITHOUT_ENEMY ) ) {
+                reload = true;
+            }
+            else {
+                if ( HasCondition( BCOND_ENEMY_LOST ) && HasCondition( BCOND_ENEMY_LAST_POSITION_VISIBLE ) )
+                    reload = true;
 
-                if ( memory->GetDistance() <= 600.0f ) {
-                    reload = false;
-                }
+                if ( HasCondition( BCOND_ENEMY_TOO_FAR ) || HasCondition( BCOND_ENEMY_FAR ) )
+                    reload = true;
             }
 
             if ( reload ) {
@@ -513,10 +559,35 @@ void IBotSchedule::TaskStart()
             break;
         }
 
-        // TODO: This needs to be replaced by a custom Bot
+        // NOTE: This is only a test
         case BTASK_HEAL:
         {
             GetHost()->TakeHealth( 30.0f, DMG_GENERIC );
+            TaskComplete();
+            break;
+        }
+
+        case BTASK_SET_FAIL_SCHEDULE:
+        {
+            if ( !GetMemory() ) {
+                Fail( "Without memory" );
+                return;
+            }
+
+            m_iScheduleOnFail = pTask->iValue;
+            TaskComplete();
+            break;
+        }
+
+        case BTASK_SET_SCHEDULE:
+        {
+            if ( !GetMemory() ) {
+                Fail( "Without memory" );
+                return;
+            }
+
+            GetMemory()->UpdateDataMemory( "NextSchedule", pTask->iValue );
+
             TaskComplete();
             break;
         }
@@ -540,9 +611,9 @@ void IBotSchedule::TaskRun()
 
     switch ( pTask->task ) {
         case BTASK_SAVE_POSITION:
-        case BTASK_GET_COVER:
-        case BTASK_GET_FAR_COVER:
-        case BTASK_GET_SPAWN:
+        case BTASK_SAVE_COVER_SPOT:
+        case BTASK_SAVE_FAR_COVER_SPOT:
+        case BTASK_SAVE_SPAWN_POSITION:
         case BTASK_CALL_FOR_BACKUP:
         {
             break;
@@ -581,14 +652,14 @@ void IBotSchedule::TaskRun()
                 GetMemory()->MaintainThreat();
             }
 
-            if ( HasCondition( BCOND_SEE_HATE ) || HasCondition( BCOND_SEE_ENEMY ) ) {
+            if ( HasCondition( BCOND_SEE_HATE ) ) {
                 TaskComplete();
                 return;
             }
 
-            Vector vecPosition = GetSavedPosition();
+            Vector vecGoal = GetSavedPosition();
 
-            float distance = GetAbsOrigin().DistTo( vecPosition );
+            float distance = GetAbsOrigin().DistTo( vecGoal );
             float tolerance = GetLocomotion()->GetTolerance();
 
             if ( distance <= tolerance ) {
@@ -596,7 +667,7 @@ void IBotSchedule::TaskRun()
                 return;
             }
 
-            GetLocomotion()->DriveTo( "Restoring Position", vecPosition, PRIORITY_NORMAL );
+            GetLocomotion()->DriveTo( "Restoring Position", vecGoal, PRIORITY_NORMAL );
             break;
         }
 
@@ -628,11 +699,6 @@ void IBotSchedule::TaskRun()
 
             if ( !vecGoal.IsValid() ) {
                 Fail( "Invalid goal" );
-                return;
-            }
-
-            if ( !GetLocomotion()->IsTraversable( GetAbsOrigin(), vecGoal ) ) {
-                Fail( "Invalid path to goal" );
                 return;
             }
 

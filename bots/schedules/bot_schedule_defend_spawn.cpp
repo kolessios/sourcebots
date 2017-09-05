@@ -18,29 +18,48 @@
 
 //================================================================================
 //================================================================================
-BEGIN_SETUP_SCHEDULE( CDefendSpawnSchedule )
-    ADD_TASK( BTASK_GET_SPAWN, NULL )
-    ADD_TASK( BTASK_MOVE_DESTINATION, NULL )
+SET_SCHEDULE_TASKS( CDefendSpawnSchedule )
+{
+    ADD_TASK( BTASK_SET_FAIL_SCHEDULE, SCHEDULE_COVER );
+    ADD_TASK( BTASK_SAVE_SPAWN_POSITION, NULL );
+    ADD_TASK( BTASK_MOVE_DESTINATION, NULL );
+}
 
-    ADD_INTERRUPT( BCOND_NEW_ENEMY )
-    ADD_INTERRUPT( BCOND_SEE_ENEMY )
-    ADD_INTERRUPT( BCOND_SEE_FEAR )
-    ADD_INTERRUPT( BCOND_LIGHT_DAMAGE )
-    ADD_INTERRUPT( BCOND_HEAVY_DAMAGE )
-    ADD_INTERRUPT( BCOND_LOW_HEALTH )
-    ADD_INTERRUPT( BCOND_DEJECTED )
-END_SCHEDULE()
+SET_SCHEDULE_INTERRUPTS( CDefendSpawnSchedule )
+{
+    ADD_INTERRUPT( BCOND_EMPTY_PRIMARY_AMMO );
+    ADD_INTERRUPT( BCOND_EMPTY_CLIP1_AMMO );
+    ADD_INTERRUPT( BCOND_HELPLESS );
+    ADD_INTERRUPT( BCOND_SEE_HATE );
+    ADD_INTERRUPT( BCOND_SEE_ENEMY );
+    ADD_INTERRUPT( BCOND_LIGHT_DAMAGE );
+    ADD_INTERRUPT( BCOND_HEAVY_DAMAGE );
+    ADD_INTERRUPT( BCOND_REPEATED_DAMAGE );
+    ADD_INTERRUPT( BCOND_LOW_HEALTH );
+    ADD_INTERRUPT( BCOND_DEJECTED );
+    ADD_INTERRUPT( BCOND_CAN_RANGE_ATTACK1 );
+    ADD_INTERRUPT( BCOND_CAN_RANGE_ATTACK2 );
+    ADD_INTERRUPT( BCOND_CAN_MELEE_ATTACK1 );
+    ADD_INTERRUPT( BCOND_CAN_MELEE_ATTACK2 );
+    ADD_INTERRUPT( BCOND_BETTER_WEAPON_AVAILABLE );
+    ADD_INTERRUPT( BCOND_MOBBED_BY_ENEMIES );
+    ADD_INTERRUPT( BCOND_GOAL_UNREACHABLE );
+
+    if ( GetDecision()->ShouldHelpFriends() ) {
+        ADD_INTERRUPT( BCOND_SEE_DEJECTED_FRIEND );
+    }
+}
 
 //================================================================================
 //================================================================================
-float CurrentSchedule::GetDesire() const
+float CDefendSpawnSchedule::GetDesire() const
 {
     if ( !GetMemory() )
         return BOT_DESIRE_NONE;
 
     CDataMemory *memory = GetMemory()->GetDataMemory( "SpawnPosition" );
 
-    if ( !memory )
+    if ( memory == NULL )
         return BOT_DESIRE_NONE;
 
     if ( !GetDecision()->CanMove() )
@@ -57,7 +76,7 @@ float CurrentSchedule::GetDesire() const
 
     float distance = GetHost()->GetAbsOrigin().DistTo( memory->GetVector() );
 
-    if ( distance < 200.0f )
+    if ( distance < 130.0f )
         return BOT_DESIRE_NONE;
 
     return 0.05f;

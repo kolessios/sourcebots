@@ -100,13 +100,13 @@ public:
 	virtual void TaskComplete();
 	virtual void TaskFail( const char *pWhy );
 
-    virtual void SelectPreConditions();
-    virtual void SelectPostConditions();
+    virtual void GatherConditions();
 
-    virtual void SelectHealthConditions();
-    virtual void SelectWeaponConditions();
-    virtual void SelectEnemyConditions();
-    virtual void SelectAttackConditions();
+    virtual void GatherHealthConditions();
+    virtual void GatherWeaponConditions();
+    virtual void GatherEnemyConditions();
+    virtual void GatherAttackConditions();
+    virtual void GatherLocomotionConditions();
 
     virtual CBaseEntity *GetEnemy() const;
     virtual CEntityMemory *GetPrimaryThreat() const;
@@ -157,14 +157,29 @@ public:
 
 public:
     virtual void ApplyDebugCommands();
-    virtual bool ShouldOptimize();
     virtual void Possess( CPlayer *pPlayer );
     virtual bool IsLocalPlayerWatchingMe();
+
+    // Functions to debug if attempts have been made to use conditions before collecting them.
+    virtual void BlockConditions() {
+        m_bConditionsBlocked = true;
+        m_nConditions.ClearAll();
+    }
+
+    virtual void UnblockConditions() {
+        m_bConditionsBlocked = true;
+    }
+
+    virtual bool IsConditionsAllowed() const {
+        return (!m_nConditions.IsAllClear() && m_bConditionsBlocked == false);
+    }
 
 private:
     CBot( const CBot & );
 
 protected:
+    bool m_bConditionsBlocked;
+
     // Damage
     int m_iRepeatedDamageTimes;
     float m_flDamageAccumulated;
