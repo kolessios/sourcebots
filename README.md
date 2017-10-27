@@ -1,3 +1,7 @@
+<a target='_blank' rel='nofollow' href='https://app.codesponsor.io/link/DKWo1c2SjKUHSpB4CFdNBsEs/WootsMX/sourcebots'>
+  <img alt='Sponsor' width='888' height='68' src='https://app.codesponsor.io/embed/DKWo1c2SjKUHSpB4CFdNBsEs/WootsMX/sourcebots.svg' />
+</a>
+
 # SourceBots
 
 SourceBots is an Artificial Intelligence system for create Bots in:
