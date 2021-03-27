@@ -1,33 +1,20 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
-//
-// Purpose: 
-//
-// $NoKeywords: $
-//
-//=============================================================================//
 // nav_path.cpp
 // Encapsulation of a path through space
-// Author: Michael S. Booth (linkedin.com/in/michaelbooth), November 2003
+// Author: Michael S. Booth (mike@turtlerockstudios.com), November 2003
+// https://github.com/ValveSoftware/halflife/tree/master/game_shared/bot
+// Ported to Source from the HL1 SDK with adjustments for SourceBots by Bitl
 
 #include "cbase.h"
-//#include "cs_gamerules.h"
-//#include "cs_player.h"
 
 #include "nav_mesh.h"
 #include "nav_path.h"
-//#include "bot_util.h"
-#include "bots\interfaces\improv_locomotor.h"
-
+#include "bots/interfaces/improv.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 #ifdef _WIN32
-#pragma warning (disable:4701)                // disable warning that variable *may* not be initialized 
+#pragma warning (disable:4701)
 #endif
-
-
-#define DrawLine( from, to, duration, red, green, blue )        NDebugOverlay::Line( from, to, red, green, blue, true, 0.1f )
-
 
 //--------------------------------------------------------------------------------------------------------------
 /**
@@ -35,122 +22,121 @@
  */
 bool CNavPath::ComputePathPositions( const Vector &start )
 {
-    if (m_segmentCount == 0)
-        return false;
+	if (m_segmentCount == 0)
+		return false;
 
-    // start in first area's center
-    //m_path[0].pos = m_path[0].area->GetCenter();
-    m_path[0].pos = start;
-    m_path[0].ladder = NULL;
-    m_path[0].how = NUM_TRAVERSE_TYPES;
+	// start in first area's center
+	m_path[0].pos = start;
+	m_path[0].ladder = NULL;
+	m_path[0].how = NUM_TRAVERSE_TYPES;
 
-    for( int i=1; i<m_segmentCount; ++i )
-    {
-        const PathSegment *from = &m_path[ i-1 ];
-        PathSegment *to = &m_path[ i ];
+	for( int i=1; i<m_segmentCount; ++i )
+	{
+		const PathSegment *from = &m_path[ i-1 ];
+		PathSegment *to = &m_path[ i ];
 
-        if (to->how <= GO_WEST)        // walk along the floor to the next area
-        {
-            to->ladder = NULL;
+		if (to->how <= GO_WEST)		// walk along the floor to the next area
+		{
+			to->ladder = NULL;
 
-            // compute next point, keeping path as straight as possible
-            from->area->ComputeClosestPointInPortal( to->area, (NavDirType)to->how, from->pos, &to->pos );
+			// compute next point, keeping path as straight as possible
+			from->area->ComputeClosestPointInPortal( to->area, (NavDirType)to->how, from->pos, &to->pos );
 
-            // move goal position into the goal area a bit
-            const float stepInDist = 5.0f;        // how far to "step into" an area - must be less than min area size
-            AddDirectionVector( &to->pos, (NavDirType)to->how, stepInDist );
+			// move goal position into the goal area a bit
+			const float stepInDist = 5.0f;		// how far to "step into" an area - must be less than min area size
+			AddDirectionVector( &to->pos, (NavDirType)to->how, stepInDist );
 
-            // we need to walk out of "from" area, so keep Z where we can reach it
-            to->pos.z = from->area->GetZ( to->pos );
+			// we need to walk out of "from" area, so keep Z where we can reach it
+			to->pos.z = from->area->GetZ( to->pos );
 
-            // if this is a "jump down" connection, we must insert an additional point on the path
-            if (to->area->IsConnected( from->area, NUM_DIRECTIONS ) == false)
-            {
-                // this is a "jump down" link
+			// if this is a "jump down" connection, we must insert an additional point on the path
+			if (to->area->IsConnected( from->area, NUM_DIRECTIONS ) == false)
+			{
+				// this is a "jump down" link
 
-                // compute direction of path just prior to "jump down"
-                Vector2D dir;
-                DirectionToVector2D( (NavDirType)to->how, &dir );
+				// compute direction of path just prior to "jump down"
+				Vector2D dir;
+				DirectionToVector2D( (NavDirType)to->how, &dir );
 
-                // shift top of "jump down" out a bit to "get over the ledge"
-                const float pushDist = 25.0f;
-                to->pos.x += pushDist * dir.x;
-                to->pos.y += pushDist * dir.y;
+				// shift top of "jump down" out a bit to "get over the ledge"
+				const float pushDist = 25.0f;
+				to->pos.x += pushDist * dir.x;
+				to->pos.y += pushDist * dir.y;
 
-                // insert a duplicate node to represent the bottom of the fall
-                if (m_segmentCount < MAX_PATH_SEGMENTS-1)
-                {
-                    // copy nodes down
-                    for( int j=m_segmentCount; j>i; --j )
-                        m_path[j] = m_path[j-1];
+				// insert a duplicate node to represent the bottom of the fall
+				if (m_segmentCount < MAX_PATH_SEGMENTS-1)
+				{
+					// copy nodes down
+					for( int j=m_segmentCount; j>i; --j )
+						m_path[j] = m_path[j-1];
 
-                    // path is one node longer
-                    ++m_segmentCount;
+					// path is one node longer
+					++m_segmentCount;
 
-                    // move index ahead into the new node we just duplicated
-                    ++i;
+					// move index ahead into the new node we just duplicated
+					++i;
 
-                    m_path[i].pos.x = to->pos.x + pushDist * dir.x;
-                    m_path[i].pos.y = to->pos.y + pushDist * dir.y;
+					m_path[i].pos.x = to->pos.x + pushDist * dir.x;
+					m_path[i].pos.y = to->pos.y + pushDist * dir.y;
 
-                    // put this one at the bottom of the fall
-                    m_path[i].pos.z = to->area->GetZ( m_path[i].pos );
-                }
-            }
-        }
-        else if (to->how == GO_LADDER_UP)        // to get to next area, must go up a ladder
-        {
-            // find our ladder
+					// put this one at the bottom of the fall
+					m_path[i].pos.z = to->area->GetZ( m_path[i].pos );
+				}
+			}
+		}
+		else if (to->how == GO_LADDER_UP)		// to get to next area, must go up a ladder
+		{
+			// find our ladder
             const NavLadderConnectVector *list = from->area->GetLadders( CNavLadder::LADDER_UP );
             int it;
             for( it = 0; it < list->Count(); ++it )
-            {
+			{
                 CNavLadder *ladder = (*list)[ it ].ladder;
 
-                // can't use "behind" area when ascending...
-                if (ladder->m_topForwardArea == to->area ||
-                    ladder->m_topLeftArea == to->area ||
-                    ladder->m_topRightArea == to->area)
-                {
-                    to->ladder = ladder;
+				// can't use "behind" area when ascending...
+				if (ladder->m_topForwardArea == to->area ||
+						ladder->m_topLeftArea == to->area ||
+						ladder->m_topRightArea == to->area)
+				{
+					to->ladder = ladder;
                     to->pos = ladder->m_bottom + ladder->GetNormal() * 2.0f * HalfHumanWidth;
-                    break;
-                }
-            }
+					break;
+				}
+			}
 
             if (it == list->InvalidIndex())
-            {
-                //PrintIfWatched( "ERROR: Can't find ladder in path\n" );
-                return false;
-            }
-        }
-        else if (to->how == GO_LADDER_DOWN)        // to get to next area, must go down a ladder
-        {
-            // find our ladder
+			{
+				//PrintIfWatched( "ERROR: Can't find ladder in path\n" );
+				return false;
+			}
+		}
+		else if (to->how == GO_LADDER_DOWN)		// to get to next area, must go down a ladder
+		{
+			// find our ladder
             const NavLadderConnectVector *list = from->area->GetLadders( CNavLadder::LADDER_DOWN );
             int it;
             for( it = 0; it < list->Count(); ++it )
-            {
+			{
                 CNavLadder *ladder = (*list)[ it ].ladder;
 
-                if (ladder->m_bottomArea == to->area)
-                {
-                    to->ladder = ladder;
-                    to->pos = ladder->m_top;
+				if (ladder->m_bottomArea == to->area)
+				{
+					to->ladder = ladder;
+					to->pos = ladder->m_top;
                     to->pos = ladder->m_top - ladder->GetNormal() * 2.0f * HalfHumanWidth;
-                    break;
-                }
-            }
+					break;
+				}
+			}
 
             if (it == list->InvalidIndex())
-            {
-                //PrintIfWatched( "ERROR: Can't find ladder in path\n" );
-                return false;
-            }
-        }
-    }
+			{
+				//PrintIfWatched( "ERROR: Can't find ladder in path\n" );
+				return false;
+			}
+		}
+	}
 
-    return true;
+	return true;
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -159,11 +145,11 @@ bool CNavPath::ComputePathPositions( const Vector &start )
  */
 bool CNavPath::IsAtEnd( const Vector &pos ) const
 {
-    if (!IsValid())
-        return false;
+	if (!IsValid())
+		return false;
 
-    const float epsilon = 20.0f;
-    return (pos - GetEndpoint()).IsLengthLessThan( epsilon );
+	const float epsilon = 20.0f;
+	return (pos - GetEndpoint()).IsLengthLessThan( epsilon );
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -172,13 +158,13 @@ bool CNavPath::IsAtEnd( const Vector &pos ) const
  */
 float CNavPath::GetLength( void ) const
 {
-    float length = 0.0f;
-    for( int i=1; i<GetSegmentCount(); ++i )
-    {
-        length += (m_path[i].pos - m_path[i-1].pos).Length();
-    }
+	float length = 0.0f;
+	for( int i=1; i<GetSegmentCount(); ++i )
+	{
+		length += (m_path[i].pos - m_path[i-1].pos).Length();
+	}
 
-    return length;
+	return length;
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -188,39 +174,39 @@ float CNavPath::GetLength( void ) const
  */
 bool CNavPath::GetPointAlongPath( float distAlong, Vector *pointOnPath ) const
 {
-    if (!IsValid() || pointOnPath == NULL)
-        return false;
+	if (!IsValid() || pointOnPath == NULL)
+		return false;
 
-    if (distAlong <= 0.0f)
-    {
-        *pointOnPath = m_path[0].pos;
-        return true;
-    }
+	if (distAlong <= 0.0f)
+	{
+		*pointOnPath = m_path[0].pos;
+		return true;
+	}
 
-    float lengthSoFar = 0.0f;
-    float segmentLength;
-    Vector dir;
-    for( int i=1; i<GetSegmentCount(); ++i )
-    {
-        dir = m_path[i].pos - m_path[i-1].pos;
-        segmentLength = dir.Length();
+	float lengthSoFar = 0.0f;
+	float segmentLength;
+	Vector dir;
+	for( int i=1; i<GetSegmentCount(); ++i )
+	{
+		dir = m_path[i].pos - m_path[i-1].pos;
+		segmentLength = dir.Length();
 
-        if (segmentLength + lengthSoFar >= distAlong)
-        {
-            // desired point is on this segment of the path
-            float delta = distAlong - lengthSoFar;
-            float t = delta / segmentLength;
+		if (segmentLength + lengthSoFar >= distAlong)
+		{
+			// desired point is on this segment of the path
+			float delta = distAlong - lengthSoFar;
+			float t = delta / segmentLength;
 
-            *pointOnPath = m_path[i].pos + t * dir;
+			*pointOnPath = m_path[i].pos + t * dir;
 
-            return true;
-        }
+			return true;
+		}
 
-        lengthSoFar += segmentLength;
-    }
+		lengthSoFar += segmentLength;
+	}
 
-    *pointOnPath = m_path[ GetSegmentCount()-1 ].pos;
-    return true;
+	*pointOnPath = m_path[ GetSegmentCount()-1 ].pos;
+	return true;
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -229,27 +215,27 @@ bool CNavPath::GetPointAlongPath( float distAlong, Vector *pointOnPath ) const
  */
 int CNavPath::GetSegmentIndexAlongPath( float distAlong ) const
 {
-    if (!IsValid())
-        return -1;
+	if (!IsValid())
+		return -1;
 
-    if (distAlong <= 0.0f)
-    {
-        return 0;
-    }
+	if (distAlong <= 0.0f)
+	{
+		return 0;
+	}
 
-    float lengthSoFar = 0.0f;
-    Vector dir;
-    for( int i=1; i<GetSegmentCount(); ++i )
-    {
-        lengthSoFar += (m_path[i].pos - m_path[i-1].pos).Length();
+	float lengthSoFar = 0.0f;
+	Vector dir;
+	for( int i=1; i<GetSegmentCount(); ++i )
+	{
+		lengthSoFar += (m_path[i].pos - m_path[i-1].pos).Length();
 
-        if (lengthSoFar > distAlong)
-        {
-            return i-1;
-        }
-    }
+		if (lengthSoFar > distAlong)
+		{
+			return i-1;
+		}
+	}
 
-    return GetSegmentCount()-1;
+	return GetSegmentCount()-1;
 }
 
 
@@ -261,53 +247,53 @@ int CNavPath::GetSegmentIndexAlongPath( float distAlong ) const
  */
 bool CNavPath::FindClosestPointOnPath( const Vector *worldPos, int startIndex, int endIndex, Vector *close ) const
 {
-    if (!IsValid() || close == NULL)
-        return false;
+	if (!IsValid() || close == NULL)
+		return false;
 
-    Vector along, toWorldPos;
-    Vector pos;
-    const Vector *from, *to;
-    float length;
-    float closeLength;
-    float closeDistSq = 9999999999.9;
-    float distSq;
+	Vector along, toWorldPos;
+	Vector pos;
+	const Vector *from, *to;
+	float length;
+	float closeLength;
+	float closeDistSq = 9999999999.9;
+	float distSq;
 
-    for( int i=startIndex; i<=endIndex; ++i )
-    {
-        from = &m_path[i-1].pos;
-        to = &m_path[i].pos;
+	for( int i=startIndex; i<=endIndex; ++i )
+	{
+		from = &m_path[i-1].pos;
+		to = &m_path[i].pos;
 
-        // compute ray along this path segment
-        along = *to - *from;
+		// compute ray along this path segment
+		along = *to - *from;
 
-        // make it a unit vector along the path
-        length = along.NormalizeInPlace();
+		// make it a unit vector along the path
+		length = along.NormalizeInPlace();
 
-        // compute vector from start of segment to our point
-        toWorldPos = *worldPos - *from;
+		// compute vector from start of segment to our point
+		toWorldPos = *worldPos - *from;
 
-        // find distance of closest point on ray
-        closeLength = DotProduct( toWorldPos, along );
+		// find distance of closest point on ray
+		closeLength = DotProduct( toWorldPos, along );
 
-        // constrain point to be on path segment
-        if (closeLength <= 0.0f)
-            pos = *from;
-        else if (closeLength >= length)
-            pos = *to;
-        else
-            pos = *from + closeLength * along;
+		// constrain point to be on path segment
+		if (closeLength <= 0.0f)
+			pos = *from;
+		else if (closeLength >= length)
+			pos = *to;
+		else
+			pos = *from + closeLength * along;
 
-        distSq = (pos - *worldPos).LengthSqr();
+		distSq = (pos - *worldPos).LengthSqr();
 
-        // keep the closest point so far
-        if (distSq < closeDistSq)
-        {
-            closeDistSq = distSq;
-            *close = pos;
-        }
-    }
+		// keep the closest point so far
+		if (distSq < closeDistSq)
+		{
+			closeDistSq = distSq;
+			*close = pos;
+		}
+	}
 
-    return true;
+	return true;
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -316,51 +302,47 @@ bool CNavPath::FindClosestPointOnPath( const Vector *worldPos, int startIndex, i
  */
 bool CNavPath::BuildTrivialPath( const Vector &start, const Vector &goal )
 {
-    m_segmentCount = 0;
+	m_segmentCount = 0;
 
     CNavArea *startArea = TheNavMesh->GetNearestNavArea( start );
-    if (startArea == NULL)
-        return false;
+	if (startArea == NULL)
+		return false;
 
     CNavArea *goalArea = TheNavMesh->GetNearestNavArea( goal );
-    if (goalArea == NULL)
-        return false;
+	if (goalArea == NULL)
+		return false;
 
-    m_segmentCount = 2;
+	m_segmentCount = 2;
 
-    m_path[0].area = startArea;
+	m_path[0].area = startArea;
     m_path[0].pos.x = start.x;
     m_path[0].pos.y = start.y;
-    m_path[0].pos.z = startArea->GetZ( start );
-    m_path[0].ladder = NULL;
-    m_path[0].how = NUM_TRAVERSE_TYPES;
+	m_path[0].pos.z = startArea->GetZ( start );
+	m_path[0].ladder = NULL;
+	m_path[0].how = NUM_TRAVERSE_TYPES;
 
-    m_path[1].area = goalArea;
+	m_path[1].area = goalArea;
     m_path[1].pos.x = goal.x;
     m_path[1].pos.y = goal.y;
-    m_path[1].pos.z = goalArea->GetZ( goal );
-    m_path[1].ladder = NULL;
-    m_path[1].how = NUM_TRAVERSE_TYPES;
+	m_path[1].pos.z = goalArea->GetZ( goal );
+	m_path[1].ladder = NULL;
+	m_path[1].how = NUM_TRAVERSE_TYPES;
 
-    return true;
+	return true;
 }
 
 //--------------------------------------------------------------------------------------------------------------
 /**
  * Draw the path for debugging.
  */
-void CNavPath::Draw( const Vector &color )
+void CNavPath::Draw( void )
 {
-    if (!IsValid())
-        return;
+	if (!IsValid())
+		return;
 
-    for( int i=1; i<m_segmentCount; ++i )
-    {
-        m_path[i].area->DrawFilled( 0, 0, 255, 150, 0.1f );
-
-        DrawLine( m_path[i-1].pos + Vector( 0, 0, StepHeight ),
-                  m_path[i].pos + Vector( 0, 0, StepHeight ), 2, 255 * color.x, 255 * color.y, 255 * color.z );
-    }
+	for( int i=1; i<m_segmentCount; ++i )
+		NDebugOverlay::Line( m_path[i-1].pos + Vector( 0, 0, HalfHumanHeight ), 
+												 m_path[i].pos + Vector( 0, 0, HalfHumanHeight ), 255, 75, 0, true, 0.1f);
 }
 
 
@@ -372,36 +354,37 @@ void CNavPath::Draw( const Vector &color )
  */
 int CNavPath::FindNextOccludedNode( int anchor )
 {
-    for( int i=anchor+1; i<m_segmentCount; ++i )
-    {
-        // don't remove ladder nodes
-        if (m_path[i].ladder)
-            return i;
+	//int lastVisible = anchor;
+	for( int i=anchor+1; i<m_segmentCount; ++i )
+	{
+		// don't remove ladder nodes
+		if (m_path[i].ladder)
+			return i;
 
-        if (!IsWalkableTraceLineClear( m_path[ anchor ].pos, m_path[ i ].pos ))
-        {
-            // cant see this node from anchor node
-            return i;
-        }
+		if (!IsWalkableTraceLineClear( m_path[ anchor ].pos, m_path[ i ].pos ))
+		{
+			// cant see this node from anchor node
+			return i;
+		}
 
-        Vector anchorPlusHalf =  m_path[ anchor ].pos + Vector( 0, 0, HalfHumanHeight );
-        Vector iPlusHalf =  m_path[ i ].pos +Vector( 0, 0, HalfHumanHeight );
-        if (!IsWalkableTraceLineClear( anchorPlusHalf, iPlusHalf) )
-        {
-            // cant see this node from anchor node
-            return i;
-        }
+		Vector anchorPlusHalf =  m_path[ anchor ].pos + Vector( 0, 0, HalfHumanHeight );
+		Vector iPlusHalf =  m_path[ i ].pos +Vector( 0, 0, HalfHumanHeight );
+		if (!IsWalkableTraceLineClear( anchorPlusHalf, iPlusHalf) )
+		{
+			// cant see this node from anchor node
+			return i;
+		}
 
-        Vector anchorPlusFull =  m_path[ anchor ].pos + Vector( 0, 0, HumanHeight );
-        Vector iPlusFull = m_path[ i ].pos + Vector( 0, 0, HumanHeight );
-        if (!IsWalkableTraceLineClear( anchorPlusFull, iPlusFull ))
-        {
-            // cant see this node from anchor node
-            return i;
-        }
-    }
+		Vector anchorPlusFull =  m_path[ anchor ].pos + Vector( 0, 0, HumanHeight );
+		Vector iPlusFull = m_path[ i ].pos + Vector( 0, 0, HumanHeight );
+		if (!IsWalkableTraceLineClear( anchorPlusFull, iPlusFull ))
+		{
+			// cant see this node from anchor node
+			return i;
+		}
+	}
 
-    return m_segmentCount;
+	return m_segmentCount;
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -410,35 +393,35 @@ int CNavPath::FindNextOccludedNode( int anchor )
  */
 void CNavPath::Optimize( void )
 {
-    // DONT USE THIS: Optimizing the path results in cutting thru obstacles
-    return;
+// DONT USE THIS: Optimizing the path results in cutting thru obstacles
+return;
 
-    if (m_segmentCount < 3)
-        return;
+	if (m_segmentCount < 3)
+		return;
 
-    int anchor = 0;
+	int anchor = 0;
 
-    while( anchor < m_segmentCount )
-    {
-        int occluded = FindNextOccludedNode( anchor );
-        int nextAnchor = occluded-1;
+	while( anchor < m_segmentCount )
+	{
+		int occluded = FindNextOccludedNode( anchor );
+		int nextAnchor = occluded-1;
 
-        if (nextAnchor > anchor)
-        {
-            // remove redundant nodes between anchor and nextAnchor
-            int removeCount = nextAnchor - anchor - 1;
-            if (removeCount > 0)
-            {
-                for( int i=nextAnchor; i<m_segmentCount; ++i )
-                {
-                    m_path[i-removeCount] = m_path[i];
-                }
-                m_segmentCount -= removeCount;
-            }
-        }
+		if (nextAnchor > anchor)
+		{
+			// remove redundant nodes between anchor and nextAnchor
+			int removeCount = nextAnchor - anchor - 1;
+			if (removeCount > 0)
+			{
+				for( int i=nextAnchor; i<m_segmentCount; ++i )
+				{
+					m_path[i-removeCount] = m_path[i];
+				}
+				m_segmentCount -= removeCount;
+			}
+		}
 
-        ++anchor;
-    }
+		++anchor;
+	}
 }
 
 
@@ -450,21 +433,21 @@ void CNavPath::Optimize( void )
  */
 CNavPathFollower::CNavPathFollower( void )
 {
-    m_improv = NULL;
-    m_path = NULL;
+	m_improv = NULL;
+	m_path = NULL;
 
-    m_segmentIndex = 0;
-    m_isLadderStarted = false;
+	m_segmentIndex = 0;
+	m_isLadderStarted = false;
 
-    m_isDebug = false;
+	m_isDebug = false;
 }
 
 void CNavPathFollower::Reset( void )
 {
-    m_segmentIndex = 1;
-    m_isLadderStarted = false;
+	m_segmentIndex = 1;
+	m_isLadderStarted = false;
 
-    m_stuckMonitor.Reset();
+	m_stuckMonitor.Reset();
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -473,187 +456,202 @@ void CNavPathFollower::Reset( void )
  */
 void CNavPathFollower::Update( float deltaT, bool avoidObstacles )
 {
-    if ( m_path == NULL || m_path->IsValid() == false )
-        return;
+	if (m_path == NULL || m_path->IsValid() == false)
+		return;
 
-    const CNavPath::PathSegment *node = (*m_path)[m_segmentIndex];
+	const CNavPath::PathSegment *node = (*m_path)[ m_segmentIndex ];
 
-    if ( node == NULL ) {
-        m_improv->OnMoveToFailure( m_path->GetEndpoint(), CImprovLocomotor::FAIL_INVALID_PATH );
-        m_path->Invalidate();
-        return;
-    }
+	if (node == NULL)
+	{
+		m_improv->OnMoveToFailure( m_path->GetEndpoint(), IImprovEvent::FAIL_INVALID_PATH );
+		m_path->Invalidate();
+		return;
+	}
 
-    // handle ladders
-    if ( node->ladder ) {
-        const Vector *approachPos = NULL;
-        const Vector *departPos = NULL;
+	// handle ladders
+	if (node->ladder)
+	{
+		const Vector *approachPos = NULL;
+		const Vector *departPos = NULL;
 
-        if ( m_segmentIndex )
-            approachPos = &(*m_path)[m_segmentIndex - 1]->pos;
+		if (m_segmentIndex)
+			approachPos = &(*m_path)[ m_segmentIndex-1 ]->pos;
 
-        if ( m_segmentIndex < m_path->GetSegmentCount() - 1 )
-            departPos = &(*m_path)[m_segmentIndex + 1]->pos;
+		if (m_segmentIndex < m_path->GetSegmentCount()-1)
+			departPos = &(*m_path)[ m_segmentIndex+1 ]->pos;
 
-        if ( !m_isLadderStarted ) {
-            // set up ladder movement
-            m_improv->StartLadder( node->ladder, node->how, *approachPos, *departPos );
-            m_isLadderStarted = true;
-        }
+		if (!m_isLadderStarted)
+		{
+			// set up ladder movement
+			m_improv->StartLadder( node->ladder, node->how, *approachPos, *departPos );
+			m_isLadderStarted = true;
+		}
 
-        // move improv along ladder
-        if ( m_improv->TraverseLadder( node->ladder, node->how, *approachPos, *departPos, deltaT ) ) {
-            // completed ladder
-            ++m_segmentIndex;
-        }
+		// move improv along ladder
+		if (m_improv->TraverseLadder( node->ladder, node->how, *approachPos, *departPos, deltaT ))
+		{
+			// completed ladder
+			++m_segmentIndex;
+		}
+		return;
+	}
 
-        return;
-    }
+	// reset ladder init flag
+	m_isLadderStarted = false;
 
-    // reset ladder init flag
-    m_isLadderStarted = false;
+	//
+	// Check if we reached the end of the path
+	//
+	const float closeRange = 20.0f;
+	if ((m_improv->GetFeet() - node->pos).IsLengthLessThan( closeRange ))
+	{
+		++m_segmentIndex;
 
-    //
-    // Check if we reached the end of the path
-    //
-    const float closeRange = 20.0f;
-    if ( (m_improv->GetFeet() - node->pos).IsLengthLessThan( closeRange ) ) {
-        ++m_segmentIndex;
-
-        if ( m_segmentIndex >= m_path->GetSegmentCount() ) {
-            m_improv->OnMoveToSuccess( m_path->GetEndpoint() );
-            m_path->Invalidate();
-            return;
-        }
-    }
-
-
-    m_goal = node->pos;
-
-    const float aheadRange = 300.0f; // 300.0f
-    m_segmentIndex = FindPathPoint( aheadRange, &m_goal, &m_behindIndex );
-    if ( m_segmentIndex >= m_path->GetSegmentCount() )
-        m_segmentIndex = m_path->GetSegmentCount() - 1;
+		if (m_segmentIndex >= m_path->GetSegmentCount())
+		{
+			m_improv->OnMoveToSuccess( m_path->GetEndpoint() );
+			m_path->Invalidate();
+			return;
+		}
+	}
 
 
-    bool isApproachingJumpArea = false;
+	m_goal = node->pos;
 
-    //
-    // Crouching
-    //
-    if ( !m_improv->IsUsingLadder() ) {
-        // because hostage crouching is not really supported by the engine,
-        // if we are standing in a crouch area, we must crouch to avoid collisions
-        if ( m_improv->GetLastKnownArea() &&
-             m_improv->GetLastKnownArea()->GetAttributes() & NAV_MESH_CROUCH &&
-             !(m_improv->GetLastKnownArea()->GetAttributes() & NAV_MESH_JUMP) ) {
-            m_improv->Crouch();
-        }
-
-        // if we are approaching a crouch area, crouch
-        // if there are no crouch areas coming up, stand
-        const float crouchRange = 50.0f;
-        bool didCrouch = false;
-        for ( int i = m_segmentIndex; i < m_path->GetSegmentCount(); ++i ) {
-            const CNavArea *to = (*m_path)[i]->area;
-
-            // if there is a jump area on the way to the crouch area, don't crouch as it messes up the jump
-            if ( to->GetAttributes() & NAV_MESH_JUMP ) {
-                isApproachingJumpArea = true;
-                break;
-            }
-
-            Vector close;
-            to->GetClosestPointOnArea( m_improv->GetCentroid(), &close );
-
-            if ( (close - m_improv->GetFeet()).AsVector2D().IsLengthGreaterThan( crouchRange ) )
-                break;
-
-            if ( to->GetAttributes() & NAV_MESH_CROUCH ) {
-                m_improv->Crouch();
-                didCrouch = true;
-                break;
-            }
-
-        }
-
-        if ( !didCrouch && !m_improv->IsJumping() ) {
-            // no crouch areas coming up
-            m_improv->StandUp();
-        }
-
-    }    // end crouching logic
+	const float aheadRange = 300.0f;
+	m_segmentIndex = FindPathPoint( aheadRange, &m_goal, &m_behindIndex );
+	if (m_segmentIndex >= m_path->GetSegmentCount())
+		m_segmentIndex = m_path->GetSegmentCount()-1;
 
 
-    if ( m_isDebug ) {
-        m_path->Draw();
+	bool isApproachingJumpArea = false;
 
-        NDebugOverlay::Line( m_improv->GetCentroid(), m_goal + Vector( 0, 0, JumpCrouchHeight ), 255, 0, 255, true, 0.1f );
-        //NDebugOverlay::Line( m_goal + Vector( 0, 0, JumpCrouchHeight ), m_improv->GetCentroid(), 255, 0, 255, true, 0.1f );
-    }
+	//
+	// Crouching
+	//
+	if (!m_improv->IsUsingLadder())
+	{
+		// because hostage crouching is not really supported by the engine,
+		// if we are standing in a crouch area, we must crouch to avoid collisions
+		if (m_improv->GetLastKnownArea() && 
+			m_improv->GetLastKnownArea()->GetAttributes() & NAV_MESH_CROUCH && 
+			!(m_improv->GetLastKnownArea()->GetAttributes() & NAV_MESH_JUMP))
+		{
+			m_improv->Crouch();
+		}
 
-    // check if improv becomes stuck
-    m_stuckMonitor.Update( m_improv );
+		// if we are approaching a crouch area, crouch
+		// if there are no crouch areas coming up, stand
+		const float crouchRange = 50.0f;
+		bool didCrouch = false;
+		for( int i=m_segmentIndex; i<m_path->GetSegmentCount(); ++i )
+		{
+			const CNavArea *to = (*m_path)[i]->area;
+
+			// if there is a jump area on the way to the crouch area, don't crouch as it messes up the jump
+			if (to->GetAttributes() & NAV_MESH_JUMP)
+			{
+				isApproachingJumpArea = true;
+				break;
+			}
+
+			Vector close;
+			to->GetClosestPointOnArea( m_improv->GetCentroid(), &close );
+
+			if ((close - m_improv->GetFeet()).AsVector2D().IsLengthGreaterThan( crouchRange ))
+				break;
+
+			if (to->GetAttributes() & NAV_MESH_CROUCH)
+			{
+				m_improv->Crouch();
+				didCrouch = true;
+				break;
+			}
+
+		}
+
+		if (!didCrouch && !m_improv->IsJumping())
+		{
+			// no crouch areas coming up
+			m_improv->StandUp();
+		}
+
+	}	// end crouching logic
 
 
-    // if improv has been stuck for too long, give up
-    const float giveUpTime = 4.0f;
-    if ( m_stuckMonitor.GetDuration() > giveUpTime ) {
-        m_improv->OnMoveToFailure( m_path->GetEndpoint(), CImprovLocomotor::FAIL_STUCK );
-        m_path->Invalidate();
-        return;
-    }
+	if (m_isDebug)
+	{
+		m_path->Draw();
+		NDebugOverlay::Line( m_improv->GetCentroid(), m_goal + Vector( 0, 0, StepHeight ), 255, 0, 255, true, 0.1f  );
+		//UTIL_DrawBeamPoints( m_goal + Vector( 0, 0, StepHeight ), m_improv->GetCentroid(), 1, 255, 0, 255 );
+	}
+
+	// check if improv becomes stuck
+	m_stuckMonitor.Update( m_improv );
 
 
-    // if our goal is high above us, we must have fallen
-    if ( m_goal.z - m_improv->GetFeet().z > JumpCrouchHeight ) {
-        m_improv->OnMoveToFailure( m_path->GetEndpoint(), CImprovLocomotor::FAIL_FELL_OFF );
-        m_path->Invalidate();
-
-        /*
-        const float closeRange = 75.0f;
-        Vector2D to( m_improv->GetFeet().x - m_goal.x, m_improv->GetFeet().y - m_goal.y );
-        if (to.IsLengthLessThan( closeRange ))
-        {
-            // we can't reach the goal position
-            // check if we can reach the next node, in case this was a "jump down" situation
-            const CNavPath::PathSegment *nextNode = (*m_path)[ m_behindIndex+1 ];
-            if (m_behindIndex >=0 && nextNode)
-            {
-                if (nextNode->pos.z - m_improv->GetFeet().z > JumpCrouchHeight)
-                {
-                    // the next node is too high, too - we really did fall of the path
-                    m_improv->OnMoveToFailure( m_path->GetEndpoint(), CImprovLocomotor::FAIL_FELL_OFF );
-                    m_path->Invalidate();
-                    return;
-                }
-            }
-            else
-            {
-                // fell trying to get to the last node in the path
-                m_improv->OnMoveToFailure( m_path->GetEndpoint(), CImprovLocomotor::FAIL_FELL_OFF );
-                m_path->Invalidate();
-                return;
-            }
-        }*/
-    }
+	// if improv has been stuck for too long, give up
+	const float giveUpTime = 4.0f;
+	if (m_stuckMonitor.GetDuration() > giveUpTime)
+	{
+		m_improv->OnMoveToFailure( m_path->GetEndpoint(), IImprovEvent::FAIL_STUCK );
+		m_path->Invalidate();
+		return;
+	}
 
 
-    // avoid small obstacles
-    if ( avoidObstacles && !isApproachingJumpArea && !m_improv->IsJumping() /*&& m_segmentIndex < m_path->GetSegmentCount() - 1*/ ) {
-        FeelerReflexAdjustment( &m_goal );
+	// if our goal is high above us, we must have fallen
+	if (m_goal.z - m_improv->GetFeet().z > JumpCrouchHeight)
+	{
+		m_improv->OnMoveToFailure( m_path->GetEndpoint(), IImprovEvent::FAIL_FELL_OFF );
+		m_path->Invalidate();
+		/*const float closeRange = 75.0f;
+		Vector2D to( m_improv->GetFeet().x - m_goal.x, m_improv->GetFeet().y - m_goal.y );
+		if (to.IsLengthLessThan( closeRange ))
+		{
+			// we can't reach the goal position
+			// check if we can reach the next node, in case this was a "jump down" situation
+			const CNavPath::PathSegment *nextNode = (*m_path)[ m_behindIndex+1 ];
+			if (m_behindIndex >=0 && nextNode)
+			{
+				if (nextNode->pos.z - m_improv->GetFeet().z > JumpCrouchHeight)
+				{
+					// the next node is too high, too - we really did fall of the path
+					m_improv->OnMoveToFailure( m_path->GetEndpoint(), IImprovEvent::FAIL_FELL_OFF );
+					m_path->Invalidate();
+					return;
+				}
+			}
+			else
+			{
+				// fell trying to get to the last node in the path
+				m_improv->OnMoveToFailure( m_path->GetEndpoint(), IImprovEvent::FAIL_FELL_OFF );
+				m_path->Invalidate();
+				return;
+			}
+		}*/
+	}
 
-        // currently, this is only used for hostages, and their collision physics stinks
-        // do more feeler checks to avoid short obstacles
-        /*const float inc = 0.25f;
-        for( float t = 0.5f; t < 1.0f; t += inc )
-        {
-            FeelerReflexAdjustment( &m_goal, t * StepHeight );
-        }*/
-    }
 
-    // move improv along path
-    m_improv->TrackPath( m_goal, deltaT );
+	// avoid small obstacles
+	if (avoidObstacles && !isApproachingJumpArea && !m_improv->IsJumping() /*&& m_segmentIndex < m_path->GetSegmentCount()-1*/)
+	{
+		FeelerReflexAdjustment( &m_goal );
+
+		// currently, this is only used for hostages, and their collision physics stinks
+		// do more feeler checks to avoid short obstacles
+		/*
+		const float inc = 0.25f;
+		for( float t = 0.5f; t < 1.0f; t += inc )
+		{
+			FeelerReflexAdjustment( &m_goal, t * StepHeight );
+		}
+		*/
+
+	}
+
+	// move improv along path
+	m_improv->TrackPath( m_goal, deltaT );
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -663,91 +661,85 @@ void CNavPathFollower::Update( float deltaT, bool avoidObstacles )
  */
 int CNavPathFollower::FindOurPositionOnPath( Vector *close, bool local ) const
 {
-    if (!m_path->IsValid())
-        return -1;
+	if (!m_path->IsValid())
+		return -1;
 
-    Vector along, toFeet;
-    Vector feet = m_improv->GetFeet();
-    Vector eyes = m_improv->GetEyes();
-    Vector pos;
-    const Vector *from, *to;
-    float length;
-    float closeLength;
-    float closeDistSq = 9999999999.9;
-    int closeIndex = -1;
-    float distSq;
+	Vector along, toFeet;
+	Vector feet = m_improv->GetFeet();
+	Vector eyes = m_improv->GetEyes();
+	Vector pos;
+	const Vector *from, *to;
+	float length;
+	float closeLength;
+	float closeDistSq = 9999999999.9;
+	int closeIndex = -1;
+	float distSq;
 
-    int start, end;
+	int start, end;
 
-    if (local)
-    {
-        start = m_segmentIndex - 3;
-        if (start < 1)
-            start = 1;
+	if (local)
+	{
+		start = m_segmentIndex - 3;
+		if (start < 1)
+			start = 1;
 
-        end = m_segmentIndex + 3;
-        if (end > m_path->GetSegmentCount())
-            end = m_path->GetSegmentCount();
-    }
-    else
-    {
-        start = 1;
-        end = m_path->GetSegmentCount();
-    }
+		end = m_segmentIndex + 3;
+		if (end > m_path->GetSegmentCount())
+			end = m_path->GetSegmentCount();
+	}
+	else
+	{
+		start = 1;
+		end = m_path->GetSegmentCount();
+	}
 
-    for( int i=start; i<end; ++i )
-    {
-        from = &(*m_path)[i-1]->pos;
-        to = &(*m_path)[i]->pos;
+	for( int i=start; i<end; ++i )
+	{
+		from = &(*m_path)[i-1]->pos;
+		to = &(*m_path)[i]->pos;
 
-        if ( m_isDebug ) {
-            NDebugOverlay::Box( *from, Vector( -3, -3, -3 ), Vector( 3, 3, 3 ), 255, 0, 0, 200, 0.1f );  // Rojo
-            NDebugOverlay::Box( *to, Vector( -5, -5, -5 ), Vector( 5, 5, 5 ), 0, 0, 255, 100.0f, 0.1f );  // Azul
-            //NDebugOverlay::Box( pos, Vector( -8, -8, -8 ), Vector( 8, 8, 8 ), 0, 255, 0, 50.0f, 0.1f ); // Verde
-        }
+		// compute ray along this path segment
+		along = *to - *from;
 
-        // compute ray along this path segment
-        along = *to - *from;
+		// make it a unit vector along the path
+		length = along.NormalizeInPlace();
 
-        // make it a unit vector along the path
-        length = along.NormalizeInPlace();
+		// compute vector from start of segment to our point
+		toFeet = feet - *from;
 
-        // compute vector from start of segment to our point
-        toFeet = feet - *from;
+		// find distance of closest point on ray
+		closeLength = DotProduct( toFeet, along );
 
-        // find distance of closest point on ray
-        closeLength = DotProduct( toFeet, along );
-
-        // constrain point to be on path segment
-        if (closeLength <= 0.0f)
-            pos = *from;
-        else if (closeLength >= length)
-            pos = *to;
-        else
-            pos = *from + closeLength * along;
+		// constrain point to be on path segment
+		if (closeLength <= 0.0f)
+			pos = *from;
+		else if (closeLength >= length)
+			pos = *to;
+		else
+			pos = *from + closeLength * along;
 
         distSq = (pos - feet).LengthSqr();
 
-        // keep the closest point so far
-        if (distSq < closeDistSq)
-        {
-            // don't use points we cant see
-            Vector probe = pos + Vector( 0, 0, HalfHumanHeight );
-            if (!IsWalkableTraceLineClear( eyes, probe, WALK_THRU_DOORS | WALK_THRU_BREAKABLES ))
-                continue;
+		// keep the closest point so far
+		if (distSq < closeDistSq)
+		{
+			// don't use points we cant see
+			Vector probe = pos + Vector( 0, 0, HalfHumanHeight );
+			if (!IsWalkableTraceLineClear( eyes, probe, WALK_THRU_DOORS | WALK_THRU_BREAKABLES ))
+				continue;
 
-            // don't use points we cant reach
-            //if (!IsStraightLinePathWalkable( &pos ))
-            //    continue;
+			// don't use points we cant reach
+			//if (!IsStraightLinePathWalkable( &pos ))
+			//	continue;
 
-            closeDistSq = distSq;
-            if (close)
-                *close = pos;
-            closeIndex = i-1;
-        }
-    }
+			closeDistSq = distSq;
+			if (close)
+				*close = pos;
+			closeIndex = i-1;
+		}
+	}
 
-    return closeIndex;
+	return closeIndex;
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -757,253 +749,247 @@ int CNavPathFollower::FindOurPositionOnPath( Vector *close, bool local ) const
  */
 int CNavPathFollower::FindPathPoint( float aheadRange, Vector *point, int *prevIndex )
 {
-    // find path index just past aheadRange
-    int afterIndex;
+	// find path index just past aheadRange
+	int afterIndex;
 
-    // finds the closest point on local area of path, and returns the path index just prior to it
-    Vector close;
+	// finds the closest point on local area of path, and returns the path index just prior to it
+	Vector close;
     int startIndex = FindOurPositionOnPath( &close, false );
 
-    if (prevIndex)
-        *prevIndex = startIndex;
+	if (prevIndex)
+		*prevIndex = startIndex;
 
-    if ( startIndex <= 0 )
-    {
-        if ( startIndex < 0 ) {
-            if ( m_isDebug )
-                NDebugOverlay::SweptBox( m_improv->GetCentroid(), *point, Vector( -2, -2, 0 ), Vector( 2, 2, 10.0f ), vec3_angle, 255, 0, 0, 150.0f, 0.1f );
-        }
+	if (startIndex <= 0)
+	{
+		// went off the end of the path
+		// or next point in path is unwalkable (ie: jump-down)
+		// keep same point
+		return m_segmentIndex;
+	}
 
-        // went off the end of the path
-        // or next point in path is unwalkable (ie: jump-down)
-        // keep same point
-        return m_segmentIndex;
-    }
+	// if we are crouching, just follow the path exactly
+	if (m_improv->IsCrouching() || m_bShouldFollowPathExactly)
+	{
+		// we want to move to the immediately next point along the path from where we are now
+		int index = startIndex+1;
+		if (index >= m_path->GetSegmentCount())
+			index = m_path->GetSegmentCount()-1;
 
-    // if we are crouching, just follow the path exactly
-    if ( m_improv->IsCrouching() || m_bFollowPathExactly )
-    {
-        // we want to move to the immediately next point along the path from where we are now
-        int index = startIndex+1;
-        if (index >= m_path->GetSegmentCount())
-            index = m_path->GetSegmentCount()-1;
+		*point = (*m_path)[ index ]->pos;
 
-        *point = (*m_path)[ index ]->pos;
-
-        // if we are very close to the next point in the path, skip ahead to the next one to avoid wiggling
-        // we must do a 2D check here, in case the goal point is floating in space due to jump down, etc
-        const float closeEpsilon = 20.0f;    // 10
+		// if we are very close to the next point in the path, skip ahead to the next one to avoid wiggling
+		// we must do a 2D check here, in case the goal point is floating in space due to jump down, etc
+		const float closeEpsilon = 20.0f;	// 10
         while ((*point - close).AsVector2D().IsLengthLessThan( closeEpsilon ))
-        {
-            ++index;
+		{
+			++index;
 
-            if (index >= m_path->GetSegmentCount())
-            {
-                index = m_path->GetSegmentCount()-1;
-                break;
-            }
+			if (index >= m_path->GetSegmentCount())
+			{
+				index = m_path->GetSegmentCount()-1;
+				break;
+			}
 
-            *point = (*m_path)[ index ]->pos;
-        }
+			*point = (*m_path)[ index ]->pos;
+		}
 
-        return index;
-    }
+		return index;
+	}
 
-    // make sure we use a node a minimum distance ahead of us, to avoid wiggling 
-    while (startIndex < m_path->GetSegmentCount()-1)
-    {
-        Vector pos = (*m_path)[ startIndex+1 ]->pos;
+	// make sure we use a node a minimum distance ahead of us, to avoid wiggling 
+	while (startIndex < m_path->GetSegmentCount()-1)
+	{
+		Vector pos = (*m_path)[ startIndex+1 ]->pos;
 
-        // we must do a 2D check here, in case the goal point is floating in space due to jump down, etc
-        const float closeEpsilon = 20.0f;
+		// we must do a 2D check here, in case the goal point is floating in space due to jump down, etc
+		const float closeEpsilon = 20.0f;
         if ((pos - close).AsVector2D().IsLengthLessThan( closeEpsilon ))
-        {
-            ++startIndex;
-        }
-        else
-        {
-            break;
-        }
-    }
+		{
+			++startIndex;
+		}
+		else
+		{
+			break;
+		}
+	}
 
-    // if we hit a ladder or jump area, must stop (dont use ladder behind us)
-    if (startIndex > m_segmentIndex && startIndex < m_path->GetSegmentCount() && 
+	// if we hit a ladder or jump area, must stop (dont use ladder behind us)
+	if (startIndex > m_segmentIndex && startIndex < m_path->GetSegmentCount() && 
             ((*m_path)[ startIndex ]->ladder || (*m_path)[ startIndex ]->area->GetAttributes() & NAV_MESH_JUMP))
-    {
-        *point = (*m_path)[ startIndex ]->pos;
-        return startIndex;
-    }
+	{
+		*point = (*m_path)[ startIndex ]->pos;
+		return startIndex;
+	}
 
-    // we need the point just *ahead* of us
-    ++startIndex;
-    if (startIndex >= m_path->GetSegmentCount())
-        startIndex = m_path->GetSegmentCount()-1;
+	// we need the point just *ahead* of us
+	++startIndex;
+	if (startIndex >= m_path->GetSegmentCount())
+		startIndex = m_path->GetSegmentCount()-1;
 
-    // if we hit a ladder or jump area, must stop
-    if (startIndex < m_path->GetSegmentCount() && 
+	// if we hit a ladder or jump area, must stop
+	if (startIndex < m_path->GetSegmentCount() && 
             ((*m_path)[ startIndex ]->ladder || (*m_path)[ startIndex ]->area->GetAttributes() & NAV_MESH_JUMP))
-    {
-        *point = (*m_path)[ startIndex ]->pos;
-        return startIndex;
-    }
+	{
+		*point = (*m_path)[ startIndex ]->pos;
+		return startIndex;
+	}
 
-    // note direction of path segment we are standing on
-    Vector initDir = (*m_path)[ startIndex ]->pos - (*m_path)[ startIndex-1 ]->pos;
-    initDir.NormalizeInPlace();
+	// note direction of path segment we are standing on
+	Vector initDir = (*m_path)[ startIndex ]->pos - (*m_path)[ startIndex-1 ]->pos;
+	initDir.NormalizeInPlace();
 
-    Vector feet = m_improv->GetFeet();
-    Vector eyes = m_improv->GetEyes();
-    float rangeSoFar = 0;
+	Vector feet = m_improv->GetFeet();
+	Vector eyes = m_improv->GetEyes();
+	float rangeSoFar = 0;
 
-    // this flag is true if our ahead point is visible
-    bool visible = true;
+	// this flag is true if our ahead point is visible
+	bool visible = true;
 
-    Vector prevDir = initDir;
+	Vector prevDir = initDir;
 
-    // step along the path until we pass aheadRange
-    bool isCorner = false;
-    int i;
-    for( i=startIndex; i<m_path->GetSegmentCount(); ++i )
-    {
-        Vector pos = (*m_path)[i]->pos;
-        Vector to = pos - (*m_path)[i-1]->pos;
-        Vector dir = to;
-        dir.NormalizeInPlace();
+	// step along the path until we pass aheadRange
+	bool isCorner = false;
+	int i;
+	for( i=startIndex; i<m_path->GetSegmentCount(); ++i )
+	{
+		Vector pos = (*m_path)[i]->pos;
+		Vector to = pos - (*m_path)[i-1]->pos;
+		Vector dir = to;
+		dir.NormalizeInPlace();
 
-        // don't allow path to double-back from our starting direction (going upstairs, down curved passages, etc)
-        if (DotProduct( dir, initDir ) < 0.0f) // -0.25f
-        {
-            --i;
-            break;
-        }
+		// don't allow path to double-back from our starting direction (going upstairs, down curved passages, etc)
+		if (DotProduct( dir, initDir ) < 0.0f) // -0.25f
+		{
+			--i;
+			break;
+		}
 
-        // if the path turns a corner, we want to move towards the corner, not into the wall/stairs/etc
-        if (DotProduct( dir, prevDir ) < 0.5f)
-        {
-            isCorner = true;
-            --i;
-            break;
-        }
-        prevDir = dir;
+		// if the path turns a corner, we want to move towards the corner, not into the wall/stairs/etc
+		if (DotProduct( dir, prevDir ) < 0.5f)
+		{
+			isCorner = true;
+			--i;
+			break;
+		}
+		prevDir = dir;
 
-        // don't use points we cant see
-        Vector probe = pos + Vector( 0, 0, HalfHumanHeight );
-        if (!IsWalkableTraceLineClear( eyes, probe, WALK_THRU_BREAKABLES ))
-        {
-            // presumably, the previous point is visible, so we will interpolate
-            visible = false;
-            break;
-        }
+		// don't use points we cant see
+		Vector probe = pos + Vector( 0, 0, HalfHumanHeight );
+		if (!IsWalkableTraceLineClear( eyes, probe, WALK_THRU_BREAKABLES ))
+		{
+			// presumably, the previous point is visible, so we will interpolate
+			visible = false;
+			break;
+		}
 
-
-        // if we encounter a ladder or jump area, we must stop
-        if (i < m_path->GetSegmentCount() && 
+		// if we encounter a ladder or jump area, we must stop
+		if (i < m_path->GetSegmentCount() && 
                 ((*m_path)[ i ]->ladder || (*m_path)[ i ]->area->GetAttributes() & NAV_MESH_JUMP))
-            break;
+			break;
 
-        // Check straight-line path from our current position to this position
-        // Test for un-jumpable height change, or unrecoverable fall
-        //if (!IsStraightLinePathWalkable( &pos ))
-        //{
-        //    --i;
-        //    break;
-        //}
+		// Check straight-line path from our current position to this position
+		// Test for un-jumpable height change, or unrecoverable fall
+		//if (!IsStraightLinePathWalkable( &pos ))
+		//{
+		//	--i;
+		//	break;
+		//}
 
-        Vector along = (i == startIndex) ? (pos - feet) : (pos - (*m_path)[i-1]->pos);
-        rangeSoFar += along.Length2D();
+		Vector along = (i == startIndex) ? (pos - feet) : (pos - (*m_path)[i-1]->pos);
+		rangeSoFar += along.Length2D();
 
-        // stop if we have gone farther than aheadRange
-        if (rangeSoFar >= aheadRange)
-            break;
-    }
+		// stop if we have gone farther than aheadRange
+		if (rangeSoFar >= aheadRange)
+			break;
+	}
 
-    if (i < startIndex)
-        afterIndex = startIndex;
-    else if (i < m_path->GetSegmentCount())
-        afterIndex = i;
-    else
-        afterIndex = m_path->GetSegmentCount()-1;
+	if (i < startIndex)
+		afterIndex = startIndex;
+	else if (i < m_path->GetSegmentCount())
+		afterIndex = i;
+	else
+		afterIndex = m_path->GetSegmentCount()-1;
 
 
-    // compute point on the path at aheadRange
-    if (afterIndex == 0)
-    {
-        *point = (*m_path)[0]->pos;
-    }
-    else
-    {
-        // interpolate point along path segment
-        const Vector *afterPoint = &(*m_path)[ afterIndex ]->pos;
-        const Vector *beforePoint = &(*m_path)[ afterIndex-1 ]->pos;
+	// compute point on the path at aheadRange
+	if (afterIndex == 0)
+	{
+		*point = (*m_path)[0]->pos;
+	}
+	else
+	{
+		// interpolate point along path segment
+		const Vector *afterPoint = &(*m_path)[ afterIndex ]->pos;
+		const Vector *beforePoint = &(*m_path)[ afterIndex-1 ]->pos;
 
-        Vector to = *afterPoint - *beforePoint;
-        float length = to.Length2D();
+		Vector to = *afterPoint - *beforePoint;
+		float length = to.Length2D();
 
-        float t = 1.0f - ((rangeSoFar - aheadRange) / length);
+		float t = 1.0f - ((rangeSoFar - aheadRange) / length);
 
-        if (t < 0.0f)
-            t = 0.0f;
-        else if (t > 1.0f)
-            t = 1.0f;
+		if (t < 0.0f)
+			t = 0.0f;
+		else if (t > 1.0f)
+			t = 1.0f;
 
-        *point = *beforePoint + t * to;
+		*point = *beforePoint + t * to;
 
-        // if afterPoint wasn't visible, slide point backwards towards beforePoint until it is
-        if (!visible)
-        {
-            const float sightStepSize = 25.0f;
-            float dt = sightStepSize / length;
+		// if afterPoint wasn't visible, slide point backwards towards beforePoint until it is
+		if (!visible)
+		{
+			const float sightStepSize = 25.0f;
+			float dt = sightStepSize / length;
 
-            Vector probe = *point + Vector( 0, 0, HalfHumanHeight );
-            while( t > 0.0f && !IsWalkableTraceLineClear( eyes,  probe, WALK_THRU_BREAKABLES ) )
-            {
-                t -= dt;
-                *point = *beforePoint + t * to;
-            }
+			Vector probe = *point + Vector( 0, 0, HalfHumanHeight );
+			while( t > 0.0f && !IsWalkableTraceLineClear( eyes,  probe, WALK_THRU_BREAKABLES ) )
+			{
+				t -= dt;
+				*point = *beforePoint + t * to;
+			}
 
-            if (t <= 0.0f)
-                *point = *beforePoint;
-        }
-    }
+			if (t <= 0.0f)
+				*point = *beforePoint;
+		}
+	}
 
-    // if position found is too close to us, or behind us, force it farther down the path so we don't stop and wiggle
-    if (!isCorner)
-    {
-        const float epsilon = 50.0f;
-        Vector2D toPoint;
-        Vector2D centroid( m_improv->GetCentroid().x, m_improv->GetCentroid().y );
-        
-        toPoint.x = point->x - centroid.x;
-        toPoint.y = point->y - centroid.y;
+	// if position found is too close to us, or behind us, force it farther down the path so we don't stop and wiggle
+	if (!isCorner)
+	{
+		const float epsilon = 50.0f;
+		Vector2D toPoint;
+		Vector2D centroid( m_improv->GetCentroid().x, m_improv->GetCentroid().y );
+		
+		toPoint.x = point->x - centroid.x;
+		toPoint.y = point->y - centroid.y;
 
         if (DotProduct2D( toPoint, initDir.AsVector2D() ) < 0.0f || toPoint.IsLengthLessThan( epsilon ))
-        {
-            int i;
-            for( i=startIndex; i<m_path->GetSegmentCount(); ++i )
-            {
-                toPoint.x = (*m_path)[i]->pos.x - centroid.x;
-                toPoint.y = (*m_path)[i]->pos.y - centroid.y;
+		{
+			int i;
+			for( i=startIndex; i<m_path->GetSegmentCount(); ++i )
+			{
+				toPoint.x = (*m_path)[i]->pos.x - centroid.x;
+				toPoint.y = (*m_path)[i]->pos.y - centroid.y;
                 if ((*m_path)[i]->ladder || (*m_path)[i]->area->GetAttributes() & NAV_MESH_JUMP || toPoint.IsLengthGreaterThan( epsilon ))
-                {
-                    *point = (*m_path)[i]->pos;
-                    startIndex = i;
-                    break;
-                }
-            }
+				{
+					*point = (*m_path)[i]->pos;
+					startIndex = i;
+					break;
+				}
+			}
 
-            if (i == m_path->GetSegmentCount())
-            {
-                *point = m_path->GetEndpoint();
-                startIndex = m_path->GetSegmentCount()-1;
-            }
-        }
-    }
+			if (i == m_path->GetSegmentCount())
+			{
+				*point = m_path->GetEndpoint();
+				startIndex = m_path->GetSegmentCount()-1;
+			}
+		}
+	}
 
-    // m_pathIndex should always be the next point on the path, even if we're not moving directly towards it
-    if (startIndex < m_path->GetSegmentCount())
-        return startIndex;
+	// m_pathIndex should always be the next point on the path, even if we're not moving directly towards it
+	if (startIndex < m_path->GetSegmentCount())
+		return startIndex;
 
-    return m_path->GetSegmentCount()-1;
+	return m_path->GetSegmentCount()-1;
 }
 
 
@@ -1014,130 +1000,95 @@ int CNavPathFollower::FindPathPoint( float aheadRange, Vector *point, int *prevI
  */
 void CNavPathFollower::FeelerReflexAdjustment( Vector *goalPosition, float height )
 {
-    // if we are in a "precise" area, do not do feeler adjustments
+	// if we are in a "precise" area, do not do feeler adjustments
     if (m_improv->GetLastKnownArea() && m_improv->GetLastKnownArea()->GetAttributes() & NAV_MESH_PRECISE)
-        return;
+		return;
 
-    // use the direction towards the goal
-    Vector dir = *goalPosition - m_improv->GetFeet();
-    dir.z = 0.0f;
-    dir.NormalizeInPlace();
+	Vector dir = *goalPosition - m_improv->GetFeet();
+	dir.z = 0.0f;
+	dir.NormalizeInPlace();
 
-    Vector lat( -dir.y, dir.x, 0.0f );
+	Vector lat( -dir.y, dir.x, 0.0f );
 
-    Vector dirFeet = m_improv->GetFeet() - *goalPosition;
-    dir.z = 0.0f;
-    dir.NormalizeInPlace();
+	const float feelerOffset = (m_improv->IsCrouching()) ? 20.0f : 25.0f;	// 15, 20
+	const float feelerLengthRun = 30.0f;	// 100 - too long for tight hallways (cs_747)
+	const float feelerLengthWalk = 20.0f;
 
-    Vector latFeet( -dirFeet.y, dirFeet.x, 0.0f );
+	const float feelerHeight = (height > 0.0f) ? height : StepHeight + 0.1f;	// if obstacle is lower than StepHeight, we'll walk right over it
 
-    const float feelerOffset = (m_improv->IsCrouching()) ? 10.0f : 15.0f;    // 15, 20
-    const float feelerLengthRun = 30.0f;    // 100 - too long for tight hallways (cs_747)
-    const float feelerLengthWalk = 20.0f;
+	float feelerLength = (m_improv->IsRunning()) ? feelerLengthRun : feelerLengthWalk;
 
-    const float feelerHeight = (height > 0.0f) ? height : StepHeight + 0.1f;    // if obstacle is lower than StepHeight, we'll walk right over it
+	feelerLength = (m_improv->IsCrouching()) ? 20.0f : feelerLength;
 
-    float feelerLength = (m_improv->IsRunning()) ? feelerLengthRun : feelerLengthWalk;
+	//
+	// Feelers must follow floor slope
+	//
+	float ground;
+	Vector normal;
+	if (m_improv->GetSimpleGroundHeightWithFloor( m_improv->GetEyes(), &ground, &normal ) == false)
+		return;
 
-    feelerLength = (m_improv->IsCrouching()) ? 20.0f : feelerLength;
+	// get forward vector along floor
+	dir = CrossProduct( lat, normal );
 
-    //
-    // Feelers must follow floor slope
-    //
-    float ground;
-    Vector normal;
-    if ( m_improv->GetSimpleGroundHeightWithFloor( m_improv->GetEyes(), &ground, &normal ) == false ) {
-        return;
-    }
-
-    // get forward vector along floor
-    dir = CrossProduct( lat, normal );
-
-    // correct the sideways vector
-    lat = CrossProduct( dir, normal );
-
-    // get forward vector along floor
-    dirFeet = CrossProduct( latFeet, normal );
-
-    // correct the sideways vector
-    latFeet = CrossProduct( dirFeet, normal );
+	// correct the sideways vector
+	lat = CrossProduct( dir, normal );
 
 
-    Vector feet = m_improv->GetFeet();
-    feet.z += feelerHeight;
+	Vector feet = m_improv->GetFeet();
+	feet.z += feelerHeight;
 
-    Vector from = feet + feelerOffset * lat;
-    Vector to = from + feelerLength * dir;
+	Vector from = feet + feelerOffset * lat;
+	Vector to = from + feelerLength * dir;
 
-    bool leftClear = IsWalkableTraceLineClear( from, to, WALK_THRU_DOORS | WALK_THRU_BREAKABLES );
+	bool leftClear = IsWalkableTraceLineClear( from, to, WALK_THRU_DOORS | WALK_THRU_BREAKABLES );
 
-    // draw debug beams
-    if (m_isDebug)
-    {
-        // TODO
-        if ( leftClear )
+	// draw debug beams
+	if (m_isDebug)
+	{
+		if (leftClear)
             NDebugOverlay::SweptBox( from, to, Vector( -2, -2, 0 ), Vector( 2, 2, 10.0f ), vec3_angle, 0, 255, 0, 150.0f, 0.1f );
-        else
+		else
             NDebugOverlay::SweptBox( from, to, Vector( -2, -2, 0 ), Vector( 2, 2, 10.0f ), vec3_angle, 255, 0, 0, 150.0f, 0.1f );
-    }
+	}
 
-    from = feet - feelerOffset * lat;
-    to = from + feelerLength * dir;
+	from = feet - feelerOffset * lat;
+	to = from + feelerLength * dir;
 
-    bool rightClear = IsWalkableTraceLineClear( from, to, WALK_THRU_DOORS | WALK_THRU_BREAKABLES );
+	bool rightClear = IsWalkableTraceLineClear( from, to, WALK_THRU_DOORS | WALK_THRU_BREAKABLES );
 
-    // draw debug beams
-    if (m_isDebug)
-    {
-        // TODO
-        if ( rightClear )
+	// draw debug beams
+	if (m_isDebug)
+	{
+		if (rightClear)
             NDebugOverlay::SweptBox( from, to, Vector( -2, -2, 0 ), Vector( 2, 2, 10.0f ), vec3_angle, 0, 255, 0, 150.0f, 0.1f );
-        else
+		else
             NDebugOverlay::SweptBox( from, to, Vector( -2, -2, 0 ), Vector( 2, 2, 10.0f ), vec3_angle, 255, 0, 0, 150.0f, 0.1f );
-    }
+	}
 
 
 
-    const float avoidRange = (m_improv->IsCrouching()) ? 150.0f : 200.0f;
+	const float avoidRange = (m_improv->IsCrouching()) ? 150.0f : 200.0f;
 
-    /*if ( !rightClear && !leftClear ) {
-        Vector vecLook = from - feet;
+	if (!rightClear)
+	{
+		if (leftClear)
+		{
+			// right hit, left clear - veer left
+			*goalPosition = *goalPosition + avoidRange * lat;
+			//*goalPosition = m_improv->GetFeet() + avoidRange * lat;
 
-        if ( m_isDebug ) {
-            NDebugOverlay::VertArrow( *goalPosition + Vector( 0, 0, 15.0f ), *goalPosition, 15.0f / 4.0f, 0, 0, 255, 255.0f, true, 0.15f );
-        }
+			//m_improv->StrafeLeft();
+		}
+	}
+	else if (!leftClear)
+	{
+		// right clear, left hit - veer right
+		*goalPosition = *goalPosition - avoidRange * lat;
+		//*goalPosition = m_improv->GetFeet() - avoidRange * lat;
 
-        //*goalPosition = feet + avoidRange * vecLook;
-        *goalPosition = m_improv->GetFeet() + avoidRange * lat;
-
-        if ( m_isDebug ) {
-            NDebugOverlay::Box( *goalPosition, Vector( -5, -5, 0 ), Vector( 5, 5, 5 ), 255, 0, 255, 255, 0.15f );
-            NDebugOverlay::VertArrow( m_improv->GetFeet() + Vector( 0, 0, 15.0f ), m_improv->GetFeet(), 15.0f / 4.0f, 0, 255, 0, 255, true, 0.15f );
-
-            NDebugOverlay::Box( feet, NAI_Hull::Mins( HULL_HUMAN ), NAI_Hull::Maxs( HULL_HUMAN ), 255, 0, 0, 10.0f, 0.15f );
-        }
-    }
-    else*/ if (!rightClear)
-    {
-        if (leftClear)
-        {
-            // right hit, left clear - veer left
-            *goalPosition = *goalPosition + avoidRange * lat;
-            //*goalPosition = m_improv->GetFeet() + avoidRange * lat;
-
-            //m_improv->StrafeLeft();
-        }
-    }
-    else if (!leftClear)
-    {
-        // right clear, left hit - veer right
-        *goalPosition = *goalPosition - avoidRange * lat;
-        //*goalPosition = m_improv->GetFeet() - avoidRange * lat;
-
-        //m_improv->StrafeRight();
-    }
-
-    
+		//m_improv->StrafeRight();
+	}
 
 }
 
@@ -1147,9 +1098,9 @@ void CNavPathFollower::FeelerReflexAdjustment( Vector *goalPosition, float heigh
  */
 CStuckMonitor::CStuckMonitor( void )
 {
-    m_isStuck = false;
-    m_avgVelIndex = 0;
-    m_avgVelCount = 0;
+	m_isStuck = false;
+	m_avgVelIndex = 0;
+	m_avgVelCount = 0;
 }
 
 /**
@@ -1157,86 +1108,86 @@ CStuckMonitor::CStuckMonitor( void )
  */
 void CStuckMonitor::Reset( void )
 {
-    m_isStuck = false;
-    m_avgVelIndex = 0;
-    m_avgVelCount = 0;
+	m_isStuck = false;
+	m_avgVelIndex = 0;
+	m_avgVelCount = 0;
 }
 
 //--------------------------------------------------------------------------------------------------------------
 /**
  * Test if the improv has become stuck
  */
-void CStuckMonitor::Update( CImprovLocomotor *improv )
+void CStuckMonitor::Update( CImprov *improv )
 {
-    if (m_isStuck)
-    {
-        // improv is stuck - see if it has moved far enough to be considered unstuck
-        const float unstuckRange = 75.0f;
-        if ((improv->GetCentroid() - m_stuckSpot).IsLengthGreaterThan( unstuckRange ))
-        {
-            // no longer stuck
-            Reset();
-            //PrintIfWatched( "UN-STUCK\n" );
-        }
-    }
-    else
-    {
-        // check if improv has become stuck
+	if (m_isStuck)
+	{
+		// improv is stuck - see if it has moved far enough to be considered unstuck
+		const float unstuckRange = 75.0f;
+		if ((improv->GetCentroid() - m_stuckSpot).IsLengthGreaterThan( unstuckRange ))
+		{
+			// no longer stuck
+			Reset();
+			//PrintIfWatched( "UN-STUCK\n" );
+		}
+	}
+	else
+	{
+		// check if improv has become stuck
 
-        // compute average velocity over a short period (for stuck check)
-        Vector vel = improv->GetCentroid() - m_lastCentroid;
+		// compute average velocity over a short period (for stuck check)
+		Vector vel = improv->GetCentroid() - m_lastCentroid;
 
-        // if we are jumping, ignore Z
-        //if (improv->IsJumping())
-        //    vel.z = 0.0f;
+		// if we are jumping, ignore Z
+		//if (improv->IsJumping())
+		//	vel.z = 0.0f;
 
-        // ignore Z unless we are on a ladder (which is only Z)
-        if (!improv->IsUsingLadder())
-            vel.z = 0.0f;
+		// ignore Z unless we are on a ladder (which is only Z)
+		if (!improv->IsUsingLadder())
+			vel.z = 0.0f;
 
-        // cannot be Length2D, or will break ladder movement (they are only Z)
-        float moveDist = vel.Length();
+		// cannot be Length2D, or will break ladder movement (they are only Z)
+		float moveDist = vel.Length();
 
         float deltaT = gpGlobals->curtime - m_lastTime;
-        if (deltaT <= 0.0f)
-            return;
+		if (deltaT <= 0.0f)
+			return;
 
         m_lastTime = gpGlobals->curtime;
 
-        // compute current velocity
-        m_avgVel[ m_avgVelIndex++ ] = moveDist/deltaT;
+		// compute current velocity
+		m_avgVel[ m_avgVelIndex++ ] = moveDist/deltaT;
 
-        if (m_avgVelIndex == MAX_VEL_SAMPLES)
-            m_avgVelIndex = 0;
+		if (m_avgVelIndex == MAX_VEL_SAMPLES)
+			m_avgVelIndex = 0;
 
-        if (m_avgVelCount < MAX_VEL_SAMPLES)
-        {
-            ++m_avgVelCount;
-        }
-        else
-        {
-            // we have enough samples to know if we're stuck
+		if (m_avgVelCount < MAX_VEL_SAMPLES)
+		{
+			++m_avgVelCount;
+		}
+		else
+		{
+			// we have enough samples to know if we're stuck
 
-            float avgVel = 0.0f;
-            for( int t=0; t<m_avgVelCount; ++t )
-                avgVel += m_avgVel[t];
+			float avgVel = 0.0f;
+			for( int t=0; t<m_avgVelCount; ++t )
+				avgVel += m_avgVel[t];
 
-            avgVel /= m_avgVelCount;
+			avgVel /= m_avgVelCount;
 
-            // cannot make this velocity too high, or actors will get "stuck" when going down ladders
-            float stuckVel = (improv->IsUsingLadder()) ? 10.0f : 40.0f;
+			// cannot make this velocity too high, or actors will get "stuck" when going down ladders
+			float stuckVel = (improv->IsUsingLadder()) ? 10.0f : 40.0f;
 
-            if (avgVel < stuckVel)
-            {
-                // note when and where we initially become stuck
-                m_stuckTimer.Start();
-                m_stuckSpot = improv->GetCentroid();
-                m_isStuck = true;
-            }
-        }
-    }
+			if (avgVel < stuckVel)
+			{
+				// note when and where we initially become stuck
+				m_stuckTimer.Start();
+				m_stuckSpot = improv->GetCentroid();
+				m_isStuck = true;
+			}
+		}
+	}
 
-    // always need to track this
-    m_lastCentroid = improv->GetCentroid();
+	// always need to track this
+	m_lastCentroid = improv->GetCentroid();
 }
 

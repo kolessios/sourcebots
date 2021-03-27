@@ -1,21 +1,15 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
-//
-// Purpose: 
-//
-// $NoKeywords: $
-//
-//=============================================================================//
 // nav_path.h
 // Navigation Path encapsulation
-// Author: Michael S. Booth (linkedin.com/in/michaelbooth), November 2003
+// Author: Michael S. Booth (mike@turtlerockstudios.com), November 2003
+// https://github.com/ValveSoftware/halflife/tree/master/game_shared/bot
+// Ported to Source from the HL1 SDK with adjustments for SourceBots by Bitl
 
 #ifndef _NAV_PATH_H_
 #define _NAV_PATH_H_
 
 #include "nav_area.h"
-//#include "bot_util.h"
 
-class CImprovLocomotor;
+class CImprov;
 
 //--------------------------------------------------------------------------------------------------------
 /**
@@ -24,172 +18,144 @@ class CImprovLocomotor;
 class CNavPath
 {
 public:
-    CNavPath( void )
-    {
-        m_segmentCount = 0;
-    }
+	CNavPath( void )
+	{
+		m_segmentCount = 0;
+	}
 
-    struct PathSegment
-    {
-        CNavArea *area;                                            ///< the area along the path
-        NavTraverseType how;                                    ///< how to enter this area from the previous one
-        Vector pos;                                                ///< our movement goal position at this point in the path
-        const CNavLadder *ladder;                                ///< if "how" refers to a ladder, this is it
-    };
+	struct PathSegment
+	{
+		CNavArea *area;											///< the area along the path
+		NavTraverseType how;									///< how to enter this area from the previous one
+		Vector pos;												///< our movement goal position at this point in the path
+		const CNavLadder *ladder;								///< if "how" refers to a ladder, this is it
+	};
 
-    const PathSegment * operator[] ( int i ) const {
-        return (i >= 0 && i < m_segmentCount) ? &m_path[i] : NULL;
-    }
-    const PathSegment *GetSegment( int i ) const {
-        return (i >= 0 && i < m_segmentCount) ? &m_path[i] : NULL;
-    }
-    int GetSegmentCount( void ) const {
-        return m_segmentCount;
-    }
-    const Vector &GetEndpoint( void ) const {
-        return m_path[m_segmentCount - 1].pos;
-    }
-    bool IsAtEnd( const Vector &pos ) const;                    ///< return true if position is at the end of the path
+	const PathSegment * operator[] ( int i ) const	{ return (i >= 0 && i < m_segmentCount) ? &m_path[i] : NULL; }
+	const PathSegment *GetSegment( int i ) const	{ return (i >= 0 && i < m_segmentCount) ? &m_path[i] : NULL; }
+	int GetSegmentCount( void ) const				{ return m_segmentCount; }
+	const Vector &GetEndpoint( void ) const			{ return m_path[ m_segmentCount-1 ].pos; }
+	bool IsAtEnd( const Vector &pos ) const;					///< return true if position is at the end of the path
 
-    float GetLength( void ) const;                                ///< return length of path from start to finish
-    bool GetPointAlongPath( float distAlong, Vector *pointOnPath ) const;    ///< return point a given distance along the path - if distance is out of path bounds, point is clamped to start/end
+	float GetLength( void ) const;								///< return length of path from start to finish
+	bool GetPointAlongPath( float distAlong, Vector *pointOnPath ) const;	///< return point a given distance along the path - if distance is out of path bounds, point is clamped to start/end
 
-    /// return the node index closest to the given distance along the path without going over - returns (-1) if error
-    int GetSegmentIndexAlongPath( float distAlong ) const;
+	/// return the node index closest to the given distance along the path without going over - returns (-1) if error
+	int GetSegmentIndexAlongPath( float distAlong ) const;
 
-    bool IsUnreachable() const {
-        return m_bUnreachable;
-    }
+	bool IsValid( void ) const		{ return (m_segmentCount > 0); }
+	void Invalidate( void )			{ m_segmentCount = 0; m_bCanReach = true; m_Timer.Invalidate(); }
+	bool IsUnreachable() const 		{ return !m_bCanReach; }
+	float GetElapsedTimeSinceBuild() const { return m_Timer.GetElapsedTime(); }
 
-    bool IsValid( void ) const {
-        return (m_segmentCount > 0);
-    }
+	void Draw( void );											///< draw the path for debugging
 
-    void Invalidate( void ) {
-        m_segmentCount = 0;
-        m_bUnreachable = false;
-        m_BuildTimer.Invalidate();
-    }
+	/// compute closest point on path to given point
+	bool FindClosestPointOnPath( const Vector *worldPos, int startIndex, int endIndex, Vector *close ) const;
 
-    float GetElapsedTimeSinceBuild() const {
-        return m_BuildTimer.GetElapsedTime();
-    }
+	void Optimize( void );
+	
+	/**
+	 * Compute shortest path from 'start' to 'goal' via A* algorithm
+	 */
+	template< typename CostFunctor >
+	bool Compute( const Vector &start, const Vector &goal, CostFunctor &costFunc )
+	{
+		Invalidate();
 
-    void Draw( const Vector &color = Vector( 1.0f, 0.3f, 0 ) );    ///< draw the path for debugging
+		if (start == NULL || goal == NULL)
+			return false;
 
-    /// compute closest point on path to given point
-    bool FindClosestPointOnPath( const Vector *worldPos, int startIndex, int endIndex, Vector *close ) const;
+		CNavArea *startArea = TheNavMesh->GetNearestNavArea(start + Vector(0.0f,0.0f,1.0f));
+		if (startArea == NULL)
+			return false;
 
-    void Optimize( void );
+		CNavArea *goalArea = TheNavMesh->GetNavArea( goal );
 
-    /**
-     * Compute shortest path from 'start' to 'goal' via A* algorithm.
-     * If returns true, path was build to the goal position.
-     * If returns false, path may either be invalid (use IsValid() to check), or valid but
-     * doesn't reach all the way to the goal.
-     */
-    template< typename CostFunctor >
-    bool Compute( const Vector &start, const Vector &goal, CostFunctor &costFunc )
-    {
-        Invalidate();
+		// if we are already in the goal area, build trivial path
+		if (startArea == goalArea)
+		{
+			BuildTrivialPath( start, goal );
+			return true;
+		}
 
-        CNavArea *startArea = TheNavMesh->GetNearestNavArea( start + Vector( 0.0f, 0.0f, 1.0f ) );
-        if ( startArea == NULL ) {
-            return false;
-        }
+		// make sure path end position is on the ground
+		Vector pathEndPosition = goal;
+		if (goalArea)
+			pathEndPosition.z = goalArea->GetZ( &pathEndPosition );
+		else
+			TheNavMesh->GetGroundHeight( pathEndPosition, &pathEndPosition.z );
 
-        CNavArea *goalArea = TheNavMesh->GetNavArea( goal );
+		//
+		// Compute shortest path to goal
+		//
+		CNavArea *closestArea;
+		bool pathToGoalExists = NavAreaBuildPath( startArea, goalArea, &goal, costFunc, &closestArea );
 
-        // if we are already in the goal area, build trivial path
-        if ( startArea == goalArea ) {
-            BuildTrivialPath( start, goal );
-            return true;
-        }
+		m_Timer.Start();
+        m_bCanReach = pathToGoalExists;
 
-        // make sure path end position is on the ground
-        Vector pathEndPosition = goal;
-        if ( goalArea ) {
-            pathEndPosition.z = goalArea->GetZ( pathEndPosition );
-        }
-        else {
-            TheNavMesh->GetGroundHeight( pathEndPosition, &pathEndPosition.z );
-        }
+		//
+		// Build path by following parent links
+		//
 
-        //
-        // Compute shortest path to goal
-        //
-        CNavArea *closestArea;
-        bool pathResult = NavAreaBuildPath( startArea, goalArea, &goal, costFunc, &closestArea );
+		// get count
+		int count = 0;
+		CNavArea *area;
+		for( area = closestArea; area; area = area->GetParent() )
+			++count;
 
-        m_BuildTimer.Start();
-        m_bUnreachable = !pathResult;
+		// save room for endpoint
+		if (count > MAX_PATH_SEGMENTS-1)
+			count = MAX_PATH_SEGMENTS-1;
 
-        //
-        // Build path by following parent links
-        //
+		if (count == 0)
+			return false;
 
-        // get count
-        int count = 0;
-        CNavArea *area;
-        for ( area = closestArea; area; area = area->GetParent() ) {
-            ++count;
-        }
+		if (count == 1)
+		{
+			BuildTrivialPath( start, goal );
+			return true;
+		}
 
-        // save room for endpoint
-        if ( count > MAX_PATH_SEGMENTS - 1 ) {
-            count = MAX_PATH_SEGMENTS - 1;
-        }
+		// build path
+		m_segmentCount = count;
+		for( area = closestArea; count && area; area = area->GetParent() )
+		{
+			--count;
+			m_path[ count ].area = area;
+			m_path[ count ].how = area->GetParentHow();
+		}
 
-        if ( count == 0 ) {
-            return false;
-        }
+		// compute path positions
+		if (ComputePathPositions(start) == false)
+		{
+			//PrintIfWatched( "Error building path\n" );
+			Invalidate();
+			return false;
+		}
 
-        if ( count == 1 ) {
-            BuildTrivialPath( start, goal );
-            return true;
-        }
+		// append path end position
+		m_path[ m_segmentCount ].area = closestArea;
+		m_path[ m_segmentCount ].pos = pathEndPosition;
+		m_path[ m_segmentCount ].ladder = NULL;
+		m_path[ m_segmentCount ].how = NUM_TRAVERSE_TYPES;
+		++m_segmentCount;
 
-        // build path
-        m_segmentCount = count;
-        for ( area = closestArea; count && area; area = area->GetParent() ) {
-            --count;
-            m_path[count].area = area;
-            m_path[count].how = area->GetParentHow();
-        }
-
-        // compute path positions
-        if ( ComputePathPositions( start ) == false ) {
-            //PrintIfWatched( "CNavPath::Compute: Error building path\n" );
-            Invalidate();
-            return false;
-        }
-
-        // append path end position
-        m_path[m_segmentCount].area = closestArea;
-        m_path[m_segmentCount].pos = pathEndPosition;
-        m_path[m_segmentCount].ladder = NULL;
-        m_path[m_segmentCount].how = NUM_TRAVERSE_TYPES;
-        ++m_segmentCount;
-
-
-        return pathResult;
-    }
+		return pathToGoalExists;
+	}
 
 private:
-    enum
-    {
-        MAX_PATH_SEGMENTS = 256
-    };
-    PathSegment m_path[MAX_PATH_SEGMENTS];
-    int m_segmentCount;
-    bool m_bUnreachable;
+	enum { MAX_PATH_SEGMENTS = 256 };
+	PathSegment m_path[ MAX_PATH_SEGMENTS ];
+	int m_segmentCount;
+	bool m_bCanReach;
+    IntervalTimer m_Timer;
 
-    IntervalTimer m_BuildTimer;
+	bool ComputePathPositions( const Vector &start );				///< determine actual path positions 
+	bool BuildTrivialPath( const Vector &start, const Vector &goal );		///< utility function for when start and goal are in the same area
 
-    bool ComputePathPositions( const Vector &start );                                    ///< determine actual path positions 
-    bool BuildTrivialPath( const Vector &start, const Vector &goal );    ///< utility function for when start and goal are in the same area
-
-    int FindNextOccludedNode( int anchor );                                ///< used by Optimize()
+	int FindNextOccludedNode( int anchor );		///< used by Optimize()
 };
 
 //--------------------------------------------------------------------------------------------------------
@@ -199,25 +165,25 @@ private:
 class CStuckMonitor
 {
 public:
-    CStuckMonitor( void );
+	CStuckMonitor( void );
 
-    void Reset( void );
-    void Update( CImprovLocomotor *improv );
-    bool IsStuck( void ) const        { return m_isStuck; }
+	void Reset( void );
+	void Update( CImprov *improv );
+	bool IsStuck( void ) const			{ return m_isStuck; }
 
-    float GetDuration( void ) const    { return (m_isStuck) ? m_stuckTimer.GetElapsedTime() : 0.0f; }
+	float GetDuration( void ) const	{ return (m_isStuck) ? m_stuckTimer.GetElapsedTime() : 0.0f; }
 
 private:
-    bool m_isStuck;                                                    ///< if true, we are stuck
-    Vector m_stuckSpot;                                                ///< the location where we became stuck
-    IntervalTimer m_stuckTimer;                                        ///< how long we have been stuck
+	bool m_isStuck;													///< if true, we are stuck
+	Vector m_stuckSpot;												///< the location where we became stuck
+	IntervalTimer m_stuckTimer;										///< how long we have been stuck
 
-    enum { MAX_VEL_SAMPLES = 5 };
-    float m_avgVel[ MAX_VEL_SAMPLES ];
-    int m_avgVelIndex;
-    int m_avgVelCount;
-    Vector m_lastCentroid;
-    float m_lastTime;
+	enum { MAX_VEL_SAMPLES = 5 };
+	float m_avgVel[ MAX_VEL_SAMPLES ];
+	int m_avgVelIndex;
+	int m_avgVelCount;
+	Vector m_lastCentroid;
+	float m_lastTime;
 };
 
 //--------------------------------------------------------------------------------------------------------
@@ -227,45 +193,46 @@ private:
 class CNavPathFollower
 {
 public:
-    CNavPathFollower( void );
+	CNavPathFollower( void );
 
-    void SetImprov( CImprovLocomotor *improv ) { m_improv = improv; }
-    void SetPath( CNavPath *path ) { m_path = path; }
-    void SetFollowPathExactly( bool value ) { m_bFollowPathExactly = value; }
+	void SetImprov( CImprov *improv ) { m_improv = improv; }
+	void SetPath( CNavPath *path ) { m_path = path; }
+	void SetFollowPathExactly( bool value ) { m_bShouldFollowPathExactly = value; }
 
-    void Reset( void );
+	void Reset( void );
 
-    #define DONT_AVOID_OBSTACLES false
+	#define DONT_AVOID_OBSTACLES false
+	void Update( float deltaT, bool avoidObstacles = true );		///< move improv along path
+	void Debug( bool status )		{ m_isDebug = status; }			///< turn debugging on/off
 
-    void Update( float deltaT, bool avoidObstacles = true );        ///< move improv along path
-    void Debug( bool status )        { m_isDebug = status; }            ///< turn debugging on/off
+	bool IsStuck( void ) const		{ return m_stuckMonitor.IsStuck(); }	///< return true if improv is stuck 
+	void ResetStuck( void )			{ m_stuckMonitor.Reset(); }
+	float GetStuckDuration( void ) const	{ return m_stuckMonitor.GetDuration(); }	///< return how long we've been stuck
 
-    bool IsStuck( void ) const        { return m_stuckMonitor.IsStuck(); }    ///< return true if improv is stuck 
-    void ResetStuck( void )            { m_stuckMonitor.Reset(); }
-    float GetStuckDuration( void ) const    { return m_stuckMonitor.GetDuration(); }    ///< return how long we've been stuck
-
-    void FeelerReflexAdjustment( Vector *goalPosition, float height = -1.0f );    ///< adjust goal position if "feelers" are touched
+	void FeelerReflexAdjustment( Vector *goalPosition, float height = -1.0f );	///< adjust goal position if "feelers" are touched
 
 private:
-    CImprovLocomotor *m_improv;                                        ///< who is doing the path following
-    CNavPath *m_path;                                                ///< the path being followed
+	CImprov *m_improv;												///< who is doing the path following
 
-    int m_segmentIndex;                                                ///< the point on the path the improv is moving towards
-    int m_behindIndex;                                                ///< index of the node on the path just behind us
-    Vector m_goal;                                                    ///< last computed follow goal
+	CNavPath *m_path;												///< the path being followed
 
-    bool m_isLadderStarted;
-    bool m_isDebug;
-    bool m_bFollowPathExactly;
+	int m_segmentIndex;												///< the point on the path the improv is moving towards
+	int m_behindIndex;												///< index of the node on the path just behind us
+	Vector m_goal;													///< last computed follow goal
 
-    int FindOurPositionOnPath( Vector *close, bool local ) const;    ///< return the closest point to our current position on current path
-    int FindPathPoint( float aheadRange, Vector *point, int *prevIndex );    ///< compute a point a fixed distance ahead along our path.
+	bool m_isLadderStarted;
+
+	bool m_isDebug;
+	bool m_bShouldFollowPathExactly;
+
+	int FindOurPositionOnPath( Vector *close, bool local ) const;	///< return the closest point to our current position on current path
+	int FindPathPoint( float aheadRange, Vector *point, int *prevIndex );	///< compute a point a fixed distance ahead along our path.
 
 public:
-    CStuckMonitor m_stuckMonitor;
+	CStuckMonitor m_stuckMonitor;
 };
 
 
 
-#endif    // _NAV_PATH_H_
+#endif	// _NAV_PATH_H_
 

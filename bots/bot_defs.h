@@ -14,7 +14,7 @@
 #include "nav_pathfind.h"
 #include "nav_area.h"
 #include "nav_mesh.h"
-#include "bots\interfaces\improv_locomotor.h"
+#include "bots\interfaces\improv.h"
 
 //================================================================================
 // Source Engine
