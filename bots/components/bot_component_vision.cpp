@@ -1,6 +1,5 @@
 //========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 // Authors: 
-// Michael S. Booth (linkedin.com/in/michaelbooth), 2003
 // Iván Bravo Bravo (linkedin.com/in/ivanbravobravo), 2017
 
 #include "cbase.h"
@@ -41,7 +40,6 @@ void CBotVision::Update()
 
 //================================================================================
 // Process the aiming system
-// Author: Michael S. Booth (linkedin.com/in/michaelbooth), 2003
 //================================================================================
 void CBotVision::Process()
 {
@@ -78,26 +76,24 @@ void CBotVision::Process()
     float lookPitch = lookAngle.x;
 
     // If we are to this tolerance of being able to aim at our target we do it in an instant way.
-    const float onTargetTolerance = 1.0f;
-
     //
     // Yaw
     //
     float angleDiffYaw = AngleNormalize( lookYaw - viewAngles.y );
+    float angleDiffYawLimit = 1.0f;
 
-    if ( speed == AIM_SPEED_INSTANT || angleDiffYaw < onTargetTolerance && angleDiffYaw > -onTargetTolerance ) {
+    if ( speed == AIM_SPEED_INSTANT || (angleDiffYaw < angleDiffYawLimit && angleDiffYaw > -angleDiffYawLimit))
+    {
         m_flLookYawVel = 0.0f;
         viewAngles.y = lookYaw;
     }
-    else {
-        // simple angular spring/damper
+    else 
+    {
         float accel = stiffness * angleDiffYaw - damping * m_flLookYawVel;
 
-        // limit rate
-        if ( accel > maxAccel )
-            accel = maxAccel;
-        else if ( accel < -maxAccel )
-            accel = -maxAccel;
+        //limit angles
+        if ( accel > maxAccel ) accel = maxAccel;
+        else if ( accel < -maxAccel ) accel = -maxAccel;
 
         m_flLookYawVel += deltaT * accel;
         viewAngles.y += deltaT * m_flLookYawVel;
@@ -109,27 +105,18 @@ void CBotVision::Process()
     float angleDiffPitch = lookPitch - viewAngles.x;
     angleDiffPitch = AngleNormalize( angleDiffPitch );
 
-    /*if ( angleDiffPitch < onTargetTolerance && angleDiffPitch > -onTargetTolerance || speed == AIM_SPEED_INSTANT ) {
-        m_flLookPitchVel = 0.0f;
-        viewAngles.x = lookPitch;
-    }
-    else {*/
-        // simple angular spring/damper
-        // double the stiffness since pitch is only +/- 90 and yaw is +/- 180
-        float accel = 2.0f * stiffness * angleDiffPitch - damping * m_flLookPitchVel;
+    // double the stiffness since pitch is only +/- 90 and yaw is +/- 180
+    float accelStiff = 2.0f * stiffness * angleDiffPitch - damping * m_flLookPitchVel;
 
-        // limit rate
-        if ( accel > maxAccel )
-            accel = maxAccel;
-        else if ( accel < -maxAccel )
-            accel = -maxAccel;
+    if (accelStiff > maxAccel) accelStiff = maxAccel;
+    else if (accelStiff < -maxAccel) accelStiff = -maxAccel;
 
-        m_flLookPitchVel += deltaT * accel;
-        viewAngles.x += deltaT * m_flLookPitchVel;
-    //}
+    m_flLookPitchVel += deltaT * accelStiff;
+    viewAngles.x += deltaT * m_flLookPitchVel;
 
     // We are in tolerance
-    if ( (angleDiffYaw < m_flCosTolerance && angleDiffYaw > -m_flCosTolerance) && (angleDiffPitch < m_flCosTolerance && angleDiffPitch > -m_flCosTolerance) ) {
+    if ( (angleDiffYaw < m_flCosTolerance && angleDiffYaw > -m_flCosTolerance) && (angleDiffPitch < m_flCosTolerance && angleDiffPitch > -m_flCosTolerance) ) 
+    {
         m_bAimReady = true;
 
         // We start the timer
@@ -141,13 +128,10 @@ void CBotVision::Process()
         m_bAimReady = false;
     }
 
-    // limit range - avoid gimbal lock
-    if ( viewAngles.x < -89.0f ) {
-        viewAngles.x = -89.0f;
-    }
-    else if ( viewAngles.x > 89.0f ) {
-        viewAngles.x = 89.0f;
-    }
+    //limit angles
+    float limit = 89.0f;
+    if ( viewAngles.x < -limit) viewAngles.x = -limit;
+    else if ( viewAngles.x > limit) viewAngles.x = limit;
 
     GetHost()->SnapEyeAngles( viewAngles );
 }
