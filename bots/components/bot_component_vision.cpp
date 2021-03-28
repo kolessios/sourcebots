@@ -40,6 +40,7 @@ void CBotVision::Update()
 
 //================================================================================
 // Process the aiming system
+// Inspiration: Michael S. Booth (linkedin.com/in/michaelbooth), 2003
 //================================================================================
 void CBotVision::Process()
 {
@@ -54,69 +55,72 @@ void CBotVision::Process()
         return;
     }
 
-    float deltaT = m_flTickInterval;
-
     // TODO: Find better values?
     int speed = GetAimSpeed();
-    float maxAccel = 3000.0f;
-    float stiffness = GetStiffness();
-    float damping = 25.0f;
+    float maxLookAccel, stiffness, damping, delta;
 
-    if ( !IsIdle() ) {
+    maxLookAccel = 3000.0f;
+    stiffness = GetStiffness();
+
+    if ( !IsIdle() ) 
+    {
         damping = 30.0f;
     }
+    else
+    {
+        damping = 25.0f;
+    }
 
-    QAngle viewAngles = GetHost()->EyeAngles();
-    Vector lookPosition = m_vecLookGoal - GetHost()->EyePosition();
+    delta = m_flTickInterval;
+
+    QAngle eyeAngles = GetHost()->EyeAngles();
+    Vector lookPos = m_vecLookGoal - GetHost()->EyePosition();
 
     QAngle lookAngle;
-    VectorAngles( lookPosition, lookAngle );
+    VectorAngles( lookPos, lookAngle );
 
-    float lookYaw = lookAngle.y;
-    float lookPitch = lookAngle.x;
-
-    // If we are to this tolerance of being able to aim at our target we do it in an instant way.
     //
     // Yaw
     //
-    float angleDiffYaw = AngleNormalize( lookYaw - viewAngles.y );
+
+    // If we are to this tolerance of being able to aim at our target we do it in an instant way.
+    float angleDiffYaw = AngleNormalize(lookAngle.y - eyeAngles.y );
     float angleDiffYawLimit = 1.0f;
 
-    if ( speed == AIM_SPEED_INSTANT || (angleDiffYaw < angleDiffYawLimit && angleDiffYaw > -angleDiffYawLimit))
-    {
+    if ( speed == AIM_SPEED_INSTANT || (angleDiffYaw < angleDiffYawLimit && angleDiffYaw > -angleDiffYawLimit)) {
         m_flLookYawVel = 0.0f;
-        viewAngles.y = lookYaw;
+        eyeAngles.y = lookAngle.y;
     }
     else 
     {
         float accel = stiffness * angleDiffYaw - damping * m_flLookYawVel;
 
         //limit angles
-        if ( accel > maxAccel ) accel = maxAccel;
-        else if ( accel < -maxAccel ) accel = -maxAccel;
+        if ( accel > maxLookAccel ) accel = maxLookAccel;
+        else if ( accel < -maxLookAccel ) accel = -maxLookAccel;
 
-        m_flLookYawVel += deltaT * accel;
-        viewAngles.y += deltaT * m_flLookYawVel;
+        m_flLookYawVel += delta * accel;
+        eyeAngles.y += delta * m_flLookYawVel;
     }
 
     //
     // Pitch
     //
-    float angleDiffPitch = lookPitch - viewAngles.x;
+    float angleDiffPitch = lookAngle.x - eyeAngles.x;
     angleDiffPitch = AngleNormalize( angleDiffPitch );
 
     // double the stiffness since pitch is only +/- 90 and yaw is +/- 180
-    float accelStiff = 2.0f * stiffness * angleDiffPitch - damping * m_flLookPitchVel;
+    float stiffnessMultiplier = 2.0f;
+    float accelStiff = stiffnessMultiplier * stiffness * angleDiffPitch - damping * m_flLookPitchVel;
 
-    if (accelStiff > maxAccel) accelStiff = maxAccel;
-    else if (accelStiff < -maxAccel) accelStiff = -maxAccel;
+    if (accelStiff > maxLookAccel) accelStiff = maxLookAccel;
+    else if (accelStiff < -maxLookAccel) accelStiff = -maxLookAccel;
 
-    m_flLookPitchVel += deltaT * accelStiff;
-    viewAngles.x += deltaT * m_flLookPitchVel;
+    m_flLookPitchVel += delta * accelStiff;
+    eyeAngles.x += delta * m_flLookPitchVel;
 
     // We are in tolerance
-    if ( (angleDiffYaw < m_flCosTolerance && angleDiffYaw > -m_flCosTolerance) && (angleDiffPitch < m_flCosTolerance && angleDiffPitch > -m_flCosTolerance) ) 
-    {
+    if ( (angleDiffYaw < m_flCosTolerance && angleDiffYaw > -m_flCosTolerance) && (angleDiffPitch < m_flCosTolerance && angleDiffPitch > -m_flCosTolerance) ) {
         m_bAimReady = true;
 
         // We start the timer
@@ -130,10 +134,10 @@ void CBotVision::Process()
 
     //limit angles
     float limit = 89.0f;
-    if ( viewAngles.x < -limit) viewAngles.x = -limit;
-    else if ( viewAngles.x > limit) viewAngles.x = limit;
+    if ( eyeAngles.x < -limit) eyeAngles.x = -limit;
+    else if (eyeAngles.x > limit) eyeAngles.x = limit;
 
-    GetHost()->SnapEyeAngles( viewAngles );
+    GetHost()->SnapEyeAngles(eyeAngles);
 }
 
 //================================================================================
