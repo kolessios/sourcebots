@@ -53,7 +53,7 @@ Some of them:
 
 ## 🎬 Videos
 
-You can watch this [YouTube playlist]((https://youtu.be/W5N_w7dwxuw?list=PLOUVJcNedgYEfzMJvK8wiI9GzvLKRR2IW)) to see examples of Bots and a bit of the history of the project's development.
+You can watch this [YouTube playlist](https://youtu.be/W5N_w7dwxuw?list=PLOUVJcNedgYEfzMJvK8wiI9GzvLKRR2IW) to see examples of Bots and a bit of the history of the project's development.
 
 ## 📞 Contact
 
