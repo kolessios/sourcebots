@@ -13,7 +13,7 @@
 // Everything related to movement and navigation.
 // You can create a custom locomotion component using this interface.
 //================================================================================
-abstract_class IBotLocomotion : public IBotComponent, public CImprovLocomotor
+abstract_class IBotLocomotion : public IBotComponent, public CImprov
 {
 public:
     DECLARE_CLASS_GAMEROOT( IBotLocomotion, IBotComponent );
